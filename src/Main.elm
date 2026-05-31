@@ -69,6 +69,13 @@ type alias Model =
     , keypadEnabled : Bool
     , sharedCount : Int
     , stepsWithKeypad : Int
+    , skippedProblems : List SkippedProblem
+    , showSkippedProblems : Bool
+    }
+
+type alias SkippedProblem =
+    { cardValues : List Int
+    , answer : String
     }
 
 type Msg
@@ -95,6 +102,7 @@ type Msg
     | KeypadInput String
     | ToggleKeypad
     | ShareProblem
+    | ToggleSkippedProblems
     | NoOp
 
 type alias Flags =
@@ -514,6 +522,8 @@ init flags =
       , keypadEnabled = True
       , sharedCount = 0
       , stepsWithKeypad = 0
+      , skippedProblems = []
+      , showSkippedProblems = False
       }
     , Cmd.batch [ generateCards Normal, loadFromStorage () ]
     )
@@ -674,6 +684,27 @@ computeLiveResult input cardValues =
                             if not numsOk then ""
                             else "= " ++ fmt result
 
+computeUsedNumsHint : String -> List Float -> String
+computeUsedNumsHint input cardValues =
+    if String.isEmpty input then ""
+    else
+        case parseExpr (tokenize input) of
+            Nothing -> ""
+            Just (expr, rest) ->
+                if not (List.isEmpty rest) then ""
+                else
+                    let usedNums = extractNums expr |> List.sort
+                        expected = List.sort cardValues
+                        remaining = List.filter (\n -> not (List.member (round (n * 1000)) (List.map (\x -> round (x * 1000)) usedNums))) expected
+                    in
+                    if List.isEmpty remaining then
+                        "已用全部数字 ✓"
+                    else
+                        let usedStr = String.join ", " (List.map fmt usedNums)
+                            remStr = String.join ", " (List.map fmt remaining)
+                        in
+                        "已用: " ++ usedStr ++ " | 剩余: " ++ remStr
+
 
 -- ============ UPDATE ============
 
@@ -769,6 +800,12 @@ update msg model =
             if model.pendingNewCards then
                 ( model, Cmd.none )
             else
+                let problem =
+                        { cardValues = List.map .value model.cards
+                        , answer = Maybe.withDefault "" (List.head model.allSolutions)
+                        }
+                    newSkippedProblems = problem :: List.take 19 model.skippedProblems
+                in
                 case model.gameMode of
                     TimeAttack ->
                         let newTimeLeft = max 0 (model.timeLeft - 5)
@@ -781,6 +818,7 @@ update msg model =
                                     , showAllAnswers = True
                                     , timeLeft = newTimeLeft
                                     , pendingNewCards = True
+                                    , skippedProblems = newSkippedProblems
                                 }
                         in
                         ( newModel
@@ -799,6 +837,7 @@ update msg model =
                                     , messageType = Info
                                     , showAllAnswers = True
                                     , pendingNewCards = True
+                                    , skippedProblems = newSkippedProblems
                                 }
                         in
                         ( newModel
@@ -897,7 +936,7 @@ update msg model =
         CardClick val ->
             let newInput = model.input ++ String.fromInt val
                 live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "click", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
+            in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "key", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
 
         BackspaceInput ->
             let tokens = tokenize model.input
@@ -909,10 +948,13 @@ update msg model =
         KeypadInput s ->
             let newInput = model.input ++ s
                 live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = newInput, liveResult = live }, playSound "click" )
+            in ( { model | input = newInput, liveResult = live }, playSound "key" )
 
         ToggleKeypad ->
             ( { model | keypadEnabled = not model.keypadEnabled }, Cmd.none )
+
+        ToggleSkippedProblems ->
+            ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
 
         ShareProblem ->
             let shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/"
@@ -1300,6 +1342,24 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }
 .container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }
 
+.used-hint { text-align: center; font-size: 0.8em; margin: -4px 0 8px 0; font-weight: 600; }
+.container.dark .used-hint { color: #6bcb77; }
+.container.light .used-hint { color: #27ae60; }
+
+.skipped-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }
+.container.dark .skipped-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+.container.light .skipped-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }
+.skipped-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }
+.skipped-header h4 { margin: 0; color: #e94560; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+.skipped-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+.skipped-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.9em; }
+.container.dark .skipped-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }
+.container.light .skipped-item { background: rgba(0,0,0,0.05); color: #475569; }
+.skipped-ans { color: #e94560; font-size: 0.85em; }
+
+@keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+.pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
     .header { position: relative; }
@@ -1369,15 +1429,17 @@ decodeKey { key, ctrlKey } =
 
 viewKeypad : Model -> Html Msg
 viewKeypad model =
-    let cardValues = model.cards |> List.map (\c -> c.value) |> Set.fromList |> Set.toList |> List.sort
-        nums = List.map String.fromInt cardValues
+    let uniqueCards =
+            model.cards
+                |> List.foldl (\c acc -> if List.any (\existing -> existing.value == c.value) acc then acc else c :: acc) []
+                |> List.sortBy .value
         ops = ["+", "-", "*", "/", "(", ")"]
     in
     div [ class "keypad" ]
         [ button [ class "keypad-toggle", onClick ToggleKeypad ] [ text (if model.keypadEnabled then "隐藏键盘" else "显示键盘") ]
         , if model.keypadEnabled then
             div []
-                [ div [ class "keypad-row" ] (List.map (\n -> button [ class "keypad-btn keypad-num", onClick (KeypadInput n) ] [ text n ]) nums)
+                [ div [ class "keypad-row" ] (List.map (\c -> button [ class "keypad-btn keypad-num", onClick (KeypadInput (String.fromInt c.value)) ] [ text c.display ]) uniqueCards)
                 , div [ class "keypad-row" ] (List.map (\o -> button [ class "keypad-btn keypad-op", onClick (KeypadInput o) ] [ text o ]) ops)
                 , div [ class "keypad-row" ]
                     [ button [ class "keypad-btn keypad-del", onClick BackspaceInput ] [ text "⌫" ]
@@ -1507,6 +1569,8 @@ view model =
             text ""
           else
             div [ class (if String.contains "= 24" model.liveResult then "live-result valid" else "live-result") ] [ text model.liveResult ]
+        , let usedHint = computeUsedNumsHint model.input (List.map (\c -> toFloat c.value) model.cards)
+          in if String.isEmpty usedHint then text "" else div [ class "used-hint" ] [ text usedHint ]
 
         , div [ class "buttons-row" ]
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "提交" ]
@@ -1552,6 +1616,25 @@ view model =
                     span [ class (if List.member a model.achievements then "ach-badge unlocked" else "ach-badge") ] [ text a ]
                 ) allAchievements)
             ]
+        , if not (List.isEmpty model.skippedProblems) then
+            div [ class "skipped-panel" ]
+                [ div [ class "skipped-header", onClick ToggleSkippedProblems ]
+                    [ h4 [] [ text ("错题本 (" ++ String.fromInt (List.length model.skippedProblems) ++ ")") ]
+                    , span [ style "font-size" "0.8em" ] [ text (if model.showSkippedProblems then "▲" else "▼") ]
+                    ]
+                , if model.showSkippedProblems then
+                    div [ class "skipped-list" ]
+                        (List.indexedMap (\i p ->
+                            div [ class "skipped-item" ]
+                                [ span [] [ text (String.fromInt (i + 1) ++ ". " ++ String.join ", " (List.map String.fromInt p.cardValues)) ]
+                                , span [ class "skipped-ans" ] [ text ("答案: " ++ p.answer ++ " = 24") ]
+                                ]
+                        ) model.skippedProblems)
+                  else
+                    text ""
+                ]
+          else
+            text ""
         , div [ class "rules" ]
             [ h3 [] [ text "游戏规则" ]
             , p [] [ text "从扑克牌中随机抽取4张牌（A=1, J=11, Q=12, K=13），用加减乘除算出24" ]
