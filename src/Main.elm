@@ -9,6 +9,7 @@ import Json.Decode as D
 import Json.Encode as E
 import Process
 import Random
+import Dict
 import Set
 import Task
 import Time
@@ -71,6 +72,9 @@ type alias Model =
     , stepsWithKeypad : Int
     , skippedProblems : List SkippedProblem
     , showSkippedProblems : Bool
+    , solverCache : Dict.Dict String (List String)
+    , comboDisplay : Maybe Int
+    , shieldActive : Bool
     }
 
 type alias SkippedProblem =
@@ -103,10 +107,12 @@ type Msg
     | ToggleKeypad
     | ShareProblem
     | ToggleSkippedProblems
+    | ClearCombo
     | NoOp
 
 type alias Flags =
     { today : String
+    , hash : String
     }
 
 
@@ -119,6 +125,7 @@ port playSound : String -> Cmd msg
 port spawnParticles : Int -> Cmd msg
 port setSFX : Bool -> Cmd msg
 port copyToClipboard : String -> Cmd msg
+port setHash : String -> Cmd msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -349,6 +356,25 @@ solve24 nums =
         solutions = List.filter (\e -> abs(e.value - 24) < 0.00001) allExprs
     in List.map (\e -> simplifySolution e.expr) solutions |> unique |> List.sort
 
+cacheKey : List Float -> String
+cacheKey nums = nums |> List.map (\n -> round (n * 1000)) |> List.sort |> List.map String.fromInt |> String.join ","
+
+solve24Cached : Dict.Dict String (List String) -> List Float -> (List String, Dict.Dict String (List String))
+solve24Cached cache nums =
+    let key = cacheKey nums
+    in case Dict.get key cache of
+        Just solutions -> (solutions, cache)
+        Nothing ->
+            let solutions = solve24 nums
+            in (solutions, Dict.insert key solutions cache)
+
+parseHashCards : String -> Maybe (List Int)
+parseHashCards hash =
+    if String.isEmpty hash then Nothing
+    else
+        let nums = hash |> String.replace "#" "" |> String.split "," |> List.filterMap String.toInt
+        in if List.length nums == 4 then Just nums else Nothing
+
 hasDivision : String -> Bool
 hasDivision s = String.contains "/" s
 
@@ -483,50 +509,75 @@ generateDailyCards dateStr =
 
 -- ============ INIT / UPDATE ============
 
+createCard : Int -> Int -> Card
+createCard val suitIdx =
+    let suits = ["♠", "♥", "♣", "♦"]
+        colors = ["#2c3e50", "#e74c3c", "#2c3e50", "#e74c3c"]
+        suit = getAt suitIdx suits |> Maybe.withDefault "♠"
+        color = getAt suitIdx colors |> Maybe.withDefault "#2c3e50"
+        display = case val of
+            1 -> "A"
+            11 -> "J"
+            12 -> "Q"
+            13 -> "K"
+            _ -> String.fromInt val
+    in { value = val, suit = suit, display = display, color = color }
+
 init : Flags -> (Model, Cmd Msg)
 init flags =
-    ( { cards = []
-      , input = ""
-      , message = "点击「新游戏」开始24点挑战！"
-      , messageType = Info
-      , streak = 0
-      , solved = 0
-      , skipped = 0
-      , showHint = False
-      , hintText = ""
-      , hintLevel = 0
-      , allSolutions = []
-      , bestStreak = 0
-      , totalGames = 0
-      , timer = 0
-      , showAllAnswers = False
-      , totalTime = 0
-      , achievements = []
-      , newAchievements = []
-      , achievementTimer = 0
-      , history = []
-      , sfxEnabled = True
-      , pendingNewCards = False
-      , difficulty = Normal
-      , liveResult = ""
-      , gameMode = Classic
-      , theme = Dark
-      , timeLeft = 0
-      , timeAttackScore = 0
-      , timeAttackBest = 0
-      , dailyDate = flags.today
-      , dailyCompleted = False
-      , dailyBestTime = 0
-      , fastestSolve = 0
-      , totalAttempts = 0
-      , keypadEnabled = True
-      , sharedCount = 0
-      , stepsWithKeypad = 0
-      , skippedProblems = []
-      , showSkippedProblems = False
-      }
-    , Cmd.batch [ generateCards Normal, loadFromStorage () ]
-    )
+    let baseModel =
+            { cards = []
+            , input = ""
+            , message = "点击「新游戏」开始24点挑战！"
+            , messageType = Info
+            , streak = 0
+            , solved = 0
+            , skipped = 0
+            , showHint = False
+            , hintText = ""
+            , hintLevel = 0
+            , allSolutions = []
+            , bestStreak = 0
+            , totalGames = 0
+            , timer = 0
+            , showAllAnswers = False
+            , totalTime = 0
+            , achievements = []
+            , newAchievements = []
+            , achievementTimer = 0
+            , history = []
+            , sfxEnabled = True
+            , pendingNewCards = False
+            , difficulty = Normal
+            , liveResult = ""
+            , gameMode = Classic
+            , theme = Dark
+            , timeLeft = 0
+            , timeAttackScore = 0
+            , timeAttackBest = 0
+            , dailyDate = flags.today
+            , dailyCompleted = False
+            , dailyBestTime = 0
+            , fastestSolve = 0
+            , totalAttempts = 0
+            , keypadEnabled = True
+            , sharedCount = 0
+            , stepsWithKeypad = 0
+            , skippedProblems = []
+            , showSkippedProblems = False
+            , solverCache = Dict.empty
+            , comboDisplay = Nothing
+            , shieldActive = False
+            }
+    in
+    case parseHashCards flags.hash of
+        Just values ->
+            let cards = List.indexedMap createCard values
+            in ( { baseModel | message = "好友分享的题目！来挑战吧！", messageType = Info }
+               , Cmd.batch [ Task.succeed cards |> Task.perform NewCards, loadFromStorage () ]
+               )
+        Nothing ->
+            ( baseModel, Cmd.batch [ generateCards Normal, loadFromStorage () ] )
 
 
 -- ============ STORAGE ============
@@ -712,22 +763,29 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
     case msg of
         NewCards cards ->
-            let solutions = solve24 (List.map (\c -> toFloat c.value) cards)
+            let cardFloats = List.map (\c -> toFloat c.value) cards
+                (solutions, newCache) = solve24Cached model.solverCache cardFloats
             in
             if List.isEmpty solutions then
-                ( model, generateCards model.difficulty )
+                ( { model | solverCache = newCache }, generateCards model.difficulty )
             else if model.difficulty == Hard && not (hasDivisionSolution solutions) then
-                ( model, generateCards model.difficulty )
+                ( { model | solverCache = newCache }, generateCards model.difficulty )
             else
                 let isFirstGame = model.totalGames == 0
                     baseMsg = case model.gameMode of
                         Daily -> "今日挑战！用这4张牌算出24"
                         TimeAttack -> "计时挑战！答对+10秒，跳过-5秒"
                         _ -> if isFirstGame then "请用下面4张牌算出24点！" else "新的一组牌！"
+                    hashCmd =
+                        if model.gameMode == Classic then
+                            setHash (String.join "," (List.map (\c -> String.fromInt c.value) cards))
+                        else
+                            Cmd.none
                 in
                 ( { model
                     | cards = cards
                     , allSolutions = solutions
+                    , solverCache = newCache
                     , message = baseMsg
                     , messageType = Info
                     , input = ""
@@ -739,7 +797,7 @@ update msg model =
                     , pendingNewCards = False
                     , showAllAnswers = False
                   }
-                , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ]
+                , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), hashCmd ]
                 )
 
         UpdateInput s ->
@@ -805,6 +863,7 @@ update msg model =
                         , answer = Maybe.withDefault "" (List.head model.allSolutions)
                         }
                     newSkippedProblems = problem :: List.take 19 model.skippedProblems
+                    hasShield = model.streak >= 3 && not model.shieldActive
                 in
                 case model.gameMode of
                     TimeAttack ->
@@ -812,13 +871,14 @@ update msg model =
                             newModel =
                                 { model
                                     | skipped = model.skipped + 1
-                                    , streak = 0
-                                    , message = "跳过！扣5秒。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
+                                    , streak = if hasShield then model.streak else 0
+                                    , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！扣5秒。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                                     , messageType = Info
                                     , showAllAnswers = True
                                     , timeLeft = newTimeLeft
                                     , pendingNewCards = True
                                     , skippedProblems = newSkippedProblems
+                                    , shieldActive = if hasShield then True else model.shieldActive
                                 }
                         in
                         ( newModel
@@ -832,12 +892,13 @@ update msg model =
                         let newModel =
                                 { model
                                     | skipped = model.skipped + 1
-                                    , streak = 0
-                                    , message = "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
+                                    , streak = if hasShield then model.streak else 0
+                                    , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                                     , messageType = Info
                                     , showAllAnswers = True
                                     , pendingNewCards = True
                                     , skippedProblems = newSkippedProblems
+                                    , shieldActive = if hasShield then True else model.shieldActive
                                 }
                         in
                         ( newModel
@@ -956,12 +1017,19 @@ update msg model =
         ToggleSkippedProblems ->
             ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
 
+        ClearCombo ->
+            ( { model | comboDisplay = Nothing }, Cmd.none )
+
         ShareProblem ->
             let shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/"
                 newShared = model.sharedCount + 1
             in ( { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }, copyToClipboard shareText )
 
         NoOp -> (model, Cmd.none )
+
+
+clearComboCmd : Cmd Msg
+clearComboCmd = Task.perform (\_ -> ClearCombo) (Process.sleep 1500)
 
 
 handleCorrect : Model -> (Model, Cmd Msg)
@@ -975,6 +1043,7 @@ handleCorrect model =
         stepMsg = if stepCount > 0 then "（" ++ String.fromInt stepCount ++ "步运算）" else ""
         newStepsWithKeypad = if model.keypadEnabled then model.stepsWithKeypad + 1 else model.stepsWithKeypad
         bubuAchievement = if stepCount == 3 && not (List.member "步步为营" model.achievements) then ["步步为营"] else []
+        newShield = if model.streak + 1 >= 3 then True else False
     in
     case model.gameMode of
         TimeAttack ->
@@ -1003,6 +1072,8 @@ handleCorrect model =
                     , achievements = model.achievements ++ newAch
                     , newAchievements = newAch
                     , achievementTimer = if hasNewAch then 5 else 0
+                    , comboDisplay = Just newStreak
+                    , shieldActive = newShield
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -1010,7 +1081,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
             )
         Daily ->
             let newStreak = model.streak + 1
@@ -1040,6 +1111,8 @@ handleCorrect model =
                     , pendingNewCards = True
                     , fastestSolve = newFastest
                     , stepsWithKeypad = newStepsWithKeypad
+                    , comboDisplay = Just newStreak
+                    , shieldActive = newShield
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -1047,7 +1120,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
             )
         Classic ->
             let newStreak = model.streak + 1
@@ -1072,6 +1145,8 @@ handleCorrect model =
                     , pendingNewCards = True
                     , fastestSolve = newFastest
                     , stepsWithKeypad = newStepsWithKeypad
+                    , comboDisplay = Just newStreak
+                    , shieldActive = newShield
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -1079,7 +1154,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
             )
 
 
@@ -1360,6 +1435,10 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 @keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 .pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
+.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }
+.combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }
+@keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }
+
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
     .header { position: relative; }
@@ -1540,6 +1619,13 @@ view model =
                 text ""
             ]
         , div [ class "cards-area" ] (List.map (\c -> viewCard c model.streak) model.cards)
+        , case model.comboDisplay of
+            Just n ->
+                div [ class "combo-popup" ]
+                    [ text (String.fromInt n ++ " 连击！")
+                    , if model.shieldActive && n >= 3 then div [ class "combo-shield" ] [ text "🛡️ 护盾激活" ] else text ""
+                    ]
+            Nothing -> text ""
         , div [ class (msgClass model.messageType) ] [ text model.message ]
         , if model.showHint then
             div [ class "hint-box" ] [ text model.hintText ]
