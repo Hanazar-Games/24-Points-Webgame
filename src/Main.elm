@@ -33,6 +33,7 @@ type alias Model =
     , allSolutions : List String
     , bestStreak : Int
     , totalGames : Int
+    , timer : Int
     }
 
 type Msg
@@ -42,6 +43,7 @@ type Msg
     | ShowHint
     | NewGame
     | Skip
+    | Tick Time.Posix
     | NoOp
 
 
@@ -284,6 +286,7 @@ init _ =
       , allSolutions = []
       , bestStreak = 0
       , totalGames = 0
+      , timer = 0
       }
     , generateCards
     )
@@ -304,6 +307,7 @@ update msg model =
                 , showHint = False
                 , hintText = ""
                 , totalGames = model.totalGames + 1
+                , timer = 0
               }
             , Cmd.none
             )
@@ -365,6 +369,7 @@ update msg model =
                 | streak = 0
                 , message = "新游戏开始！"
                 , messageType = Info
+                , timer = 0
               }
             , generateCards
             )
@@ -390,11 +395,13 @@ update msg model =
                     , Cmd.none
                     )
 
+        Tick _ -> ( { model | timer = model.timer + 1 }, Cmd.none )
+
         NoOp -> (model, Cmd.none)
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ = Sub.none
+subscriptions _ = Time.every 1000 Tick
 
 
 -- ============ VIEW ============
@@ -442,6 +449,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.85em; }
         """ ]
 
+formatTime : Int -> String
+formatTime seconds =
+    let m = seconds // 60
+        s = modBy 60 seconds
+    in String.fromInt m ++ ":" ++ (if s < 10 then "0" else "") ++ String.fromInt s
+
 msgClass : MsgType -> String
 msgClass mt =
     case mt of
@@ -484,6 +497,10 @@ view model =
             , div [ class "stat-box" ]
                 [ div [ class "stat-label" ] [ text "跳过" ]
                 , div [ class "stat-value" ] [ text (String.fromInt model.skipped) ]
+                ]
+            , div [ class "stat-box" ]
+                [ div [ class "stat-label" ] [ text "用时" ]
+                , div [ class "stat-value" ] [ text (formatTime model.timer) ]
                 ]
             ]
         , div [ class "cards-area" ] (List.map viewCard model.cards)
