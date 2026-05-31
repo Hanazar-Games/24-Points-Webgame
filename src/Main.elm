@@ -75,11 +75,19 @@ type alias Model =
     , solverCache : Dict.Dict String (List String)
     , comboDisplay : Maybe Int
     , shieldActive : Bool
+    , showSteps : Bool
+    , stepByStep : List SolveStep
+    , timeAttackHistory : List Int
     }
 
 type alias SkippedProblem =
     { cardValues : List Int
     , answer : String
+    }
+
+type alias SolveStep =
+    { before : String
+    , result : Float
     }
 
 type Msg
@@ -108,6 +116,8 @@ type Msg
     | ShareProblem
     | ToggleSkippedProblems
     | ClearCombo
+    | ShowSteps
+    | HideSteps
     | NoOp
 
 type alias Flags =
@@ -399,6 +409,72 @@ countOps e =
         MulE l r -> 1 + countOps l + countOps r
         DivE l r -> 1 + countOps l + countOps r
 
+expressionsEqual : Expr -> Expr -> Bool
+expressionsEqual a b =
+    case (a, b) of
+        (Num n1, Num n2) -> abs(n1 - n2) < 0.0001
+        (AddE l1 r1, AddE l2 r2) -> expressionsEqual l1 l2 && expressionsEqual r1 r2
+        (SubE l1 r1, SubE l2 r2) -> expressionsEqual l1 l2 && expressionsEqual r1 r2
+        (MulE l1 r1, MulE l2 r2) -> expressionsEqual l1 l2 && expressionsEqual r1 r2
+        (DivE l1 r1, DivE l2 r2) -> expressionsEqual l1 l2 && expressionsEqual r1 r2
+        _ -> False
+
+findSimplestBinary : Expr -> Maybe Expr
+findSimplestBinary e =
+    case e of
+        Num _ -> Nothing
+        AddE (Num _) (Num _) -> Just e
+        AddE l r ->
+            case findSimplestBinary l of
+                Just found -> Just found
+                Nothing -> findSimplestBinary r
+        SubE (Num _) (Num _) -> Just e
+        SubE l r ->
+            case findSimplestBinary l of
+                Just found -> Just found
+                Nothing -> findSimplestBinary r
+        MulE (Num _) (Num _) -> Just e
+        MulE l r ->
+            case findSimplestBinary l of
+                Just found -> Just found
+                Nothing -> findSimplestBinary r
+        DivE (Num _) (Num _) -> Just e
+        DivE l r ->
+            case findSimplestBinary l of
+                Just found -> Just found
+                Nothing -> findSimplestBinary r
+
+replaceExpr : Expr -> Expr -> Expr -> Expr
+replaceExpr target replacement expr =
+    if expressionsEqual expr target then replacement
+    else case expr of
+        Num n -> Num n
+        AddE l r -> AddE (replaceExpr target replacement l) (replaceExpr target replacement r)
+        SubE l r -> SubE (replaceExpr target replacement l) (replaceExpr target replacement r)
+        MulE l r -> MulE (replaceExpr target replacement l) (replaceExpr target replacement r)
+        DivE l r -> DivE (replaceExpr target replacement l) (replaceExpr target replacement r)
+
+stepByStepSolve : Expr -> List SolveStep
+stepByStepSolve expr =
+    case findSimplestBinary expr of
+        Nothing -> []
+        Just subExpr ->
+            case evalExpr subExpr of
+                Nothing -> []
+                Just result ->
+                    let newExpr = replaceExpr subExpr (Num result) expr
+                        step = { before = exprToStringSimplified subExpr ++ " = " ++ fmt result, result = result }
+                    in step :: stepByStepSolve newExpr
+
+checkBrackets : String -> String
+checkBrackets s =
+    let opens = String.indices "(" s |> List.length
+        closes = String.indices ")" s |> List.length
+    in
+    if opens > closes then "缺少 " ++ String.fromInt (opens - closes) ++ " 个 )"
+    else if closes > opens then "缺少 " ++ String.fromInt (closes - opens) ++ " 个 ("
+    else ""
+
 
 -- ============ HINT SYSTEM ============
 
@@ -568,6 +644,9 @@ init flags =
             , solverCache = Dict.empty
             , comboDisplay = Nothing
             , shieldActive = False
+            , showSteps = False
+            , stepByStep = []
+            , timeAttackHistory = []
             }
     in
     case parseHashCards flags.hash of
@@ -802,7 +881,8 @@ update msg model =
 
         UpdateInput s ->
             let live = computeLiveResult s (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = s, liveResult = live }, Cmd.none )
+                bracketHint = checkBrackets s
+            in ( { model | input = s, liveResult = live, message = bracketHint, messageType = if String.isEmpty bracketHint then model.messageType else Info }, Cmd.none )
 
         SubmitAnswer ->
             let cardValues = List.map (\c -> toFloat c.value) model.cards
@@ -838,8 +918,12 @@ update msg model =
                 first :: _ ->
                     let newLevel = min 3 (model.hintLevel + 1)
                         hint = getStepHint newLevel first
+                        steps = case parseExpr (tokenize first) of
+                            Just (expr, rest) ->
+                                if List.isEmpty rest then stepByStepSolve expr else []
+                            Nothing -> []
                     in
-                    ( { model | showHint = True, hintLevel = newLevel, hintText = hint, message = "提示已显示（" ++ String.fromInt newLevel ++ "/3）", messageType = Info }, playSound "click" )
+                    ( { model | showHint = True, hintLevel = newLevel, hintText = hint, stepByStep = steps, message = "提示已显示（" ++ String.fromInt newLevel ++ "/3）", messageType = Info }, playSound "click" )
 
         ShowAllAnswers ->
             ( { model | showAllAnswers = True, message = "显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, playSound "click" )
@@ -915,7 +999,8 @@ update msg model =
                     if model.timeLeft <= 1 then
                         let finalScore = model.timeAttackScore
                             newBest = max finalScore model.timeAttackBest
-                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！最终得分：" ++ String.fromInt finalScore, messageType = Info, pendingNewCards = False }
+                            newHistory = finalScore :: List.take 9 model.timeAttackHistory
+                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！最终得分：" ++ String.fromInt finalScore, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
                         in
                         ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error" ] )
                     else
@@ -1007,7 +1092,8 @@ update msg model =
             in ( { model | input = newInput, liveResult = live }, Cmd.none )
 
         KeypadInput s ->
-            let newInput = model.input ++ s
+            let baseInput = model.input ++ s
+                newInput = if s == "(" then baseInput ++ ")" else baseInput
                 live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
             in ( { model | input = newInput, liveResult = live }, playSound "key" )
 
@@ -1019,6 +1105,19 @@ update msg model =
 
         ClearCombo ->
             ( { model | comboDisplay = Nothing }, Cmd.none )
+
+        ShowSteps ->
+            let steps = case List.head model.allSolutions of
+                    Nothing -> []
+                    Just first ->
+                        case parseExpr (tokenize first) of
+                            Just (expr, rest) ->
+                                if List.isEmpty rest then stepByStepSolve expr else []
+                            Nothing -> []
+            in ( { model | showSteps = True, stepByStep = steps }, playSound "click" )
+
+        HideSteps ->
+            ( { model | showSteps = False }, Cmd.none )
 
         ShareProblem ->
             let shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/"
@@ -1439,6 +1538,30 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }
 @keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }
 
+.steps-panel { border-radius: 14px; padding: 18px; margin: 12px 0; }
+.container.dark .steps-panel { background: rgba(0,201,255,0.05); border: 1px solid rgba(0,201,255,0.15); }
+.container.light .steps-panel { background: rgba(0,201,255,0.03); border: 1px solid rgba(0,201,255,0.12); }
+.steps-title { font-weight: 700; color: #00c9ff; margin-bottom: 12px; font-size: 1em; }
+.steps-list { display: flex; flex-direction: column; gap: 8px; }
+.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 1em; }
+.container.dark .step-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }
+.container.light .step-item { background: rgba(0,0,0,0.05); color: #475569; }
+.step-num { min-width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; }
+.step-arrow { color: #00c9ff; font-size: 1.2em; }
+.step-result { color: #e94560; font-weight: 700; }
+
+.ta-history { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }
+.container.dark .ta-history { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+.container.light .ta-history { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }
+.ta-history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.container.dark .ta-history-title { color: #8892b0; }
+.container.light .ta-history-title { color: #64748b; }
+.ta-scores { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.ta-score { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 700; }
+.container.dark .ta-score { background: rgba(0,201,255,0.1); color: #00c9ff; }
+.container.light .ta-score { background: rgba(0,201,255,0.08); color: #0077ff; }
+.ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }
+
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
     .header { position: relative; }
@@ -1662,6 +1785,7 @@ view model =
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "提交" ]
             , button [ class "btn btn-success", onClick ShowHint ] [ text "提示" ]
             , button [ class "btn btn-secondary", onClick ShowAllAnswers ] [ text "全部" ]
+            , button [ class "btn btn-secondary", onClick ShowSteps ] [ text "步骤" ]
             , button [ class "btn btn-secondary", onClick Skip ] [ text "跳过" ]
             , button [ class "btn btn-secondary", onClick ShareProblem ] [ text "分享" ]
             , if isTimeAttack && model.timeLeft <= 0 then
@@ -1685,6 +1809,34 @@ view model =
             div [ class "all-answers" ]
                 [ div [ class "all-answers-title" ] [ text ("全部解法 (" ++ String.fromInt (List.length model.allSolutions) ++ " 个)") ]
                 , div [ class "answers-list" ] (List.indexedMap (\i ans -> div [ class "answer-item", onClick (CopyAnswer ans), title "点击复制" ] [ text (String.fromInt (i + 1) ++ ". " ++ ans ++ " = 24") ]) model.allSolutions)
+                ]
+          else
+            text ""
+        , if model.showSteps && not (List.isEmpty model.stepByStep) then
+            div [ class "steps-panel" ]
+                [ div [ class "steps-title" ] [ text "解题步骤" ]
+                , div [ class "steps-list" ]
+                    (List.indexedMap (\i step ->
+                        div [ class "step-item" ]
+                            [ div [ class "step-num" ] [ text (String.fromInt (i + 1)) ]
+                            , span [] [ text step.before ]
+                            , span [ class "step-arrow" ] [ text "→" ]
+                            , span [ class "step-result" ] [ text (fmt step.result) ]
+                            ]
+                    ) model.stepByStep)
+                , div [ style "text-align" "center", style "margin-top" "10px" ]
+                    [ button [ class "btn btn-secondary", onClick HideSteps ] [ text "关闭" ]
+                    ]
+                ]
+          else
+            text ""
+        , if isTimeAttack && not (List.isEmpty model.timeAttackHistory) then
+            div [ class "ta-history" ]
+                [ div [ class "ta-history-title" ] [ text "历史得分" ]
+                , div [ class "ta-scores" ]
+                    (List.indexedMap (\i score ->
+                        div [ class (if i == 0 then "ta-score best" else "ta-score") ] [ text (String.fromInt score) ]
+                    ) model.timeAttackHistory)
                 ]
           else
             text ""
