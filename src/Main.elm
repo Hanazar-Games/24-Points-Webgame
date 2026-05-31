@@ -42,8 +42,10 @@ type alias Model =
     , totalTime : Int
     , achievements : List String
     , newAchievements : List String
+    , achievementTimer : Int
     , history : List String
     , sfxEnabled : Bool
+    , pendingNewCards : Bool
     }
 
 type Msg
@@ -94,8 +96,8 @@ tokenizeHelp acc chars =
     case chars of
         [] -> List.reverse acc
         c :: rest ->
-            if Char.isDigit c then
-                let (digits, remaining) = spanList Char.isDigit (c :: rest)
+            if Char.isDigit c || c == '.' then
+                let (digits, remaining) = spanList (\ch -> Char.isDigit ch || ch == '.') (c :: rest)
                 in tokenizeHelp (String.fromList digits :: acc) remaining
             else
                 tokenizeHelp (String.fromList [c] :: acc) rest
@@ -351,8 +353,10 @@ init _ =
       , totalTime = 0
       , achievements = []
       , newAchievements = []
+      , achievementTimer = 0
       , history = []
       , sfxEnabled = True
+      , pendingNewCards = False
       }
     , Cmd.batch [ generateCards, loadFromStorage () ]
     )
@@ -369,20 +373,24 @@ encodeStats model =
             , ("totalSkipped", E.int model.skipped)
             , ("totalTime", E.int model.totalTime)
             , ("achievements", E.list E.string model.achievements)
+            , ("sfxEnabled", E.bool model.sfxEnabled)
+            , ("history", E.list E.string model.history)
             ]
         )
 
 decodeStats : String -> Model -> Model
 decodeStats json model =
     case D.decodeString
-        (D.map5
-            (\bs tsD tsk tt ach ->
+        (D.map7
+            (\bs tsD tsk tt ach sfx hist ->
                 { model
                     | bestStreak = max model.bestStreak bs
                     , solved = model.solved + tsD
                     , skipped = model.skipped + tsk
                     , totalTime = model.totalTime + tt
                     , achievements = model.achievements ++ ach
+                    , sfxEnabled = sfx
+                    , history = model.history ++ hist
                 }
             )
             (D.maybe (D.field "bestStreak" D.int) |> D.map (Maybe.withDefault 0))
@@ -390,6 +398,8 @@ decodeStats json model =
             (D.maybe (D.field "totalSkipped" D.int) |> D.map (Maybe.withDefault 0))
             (D.maybe (D.field "totalTime" D.int) |> D.map (Maybe.withDefault 0))
             (D.maybe (D.field "achievements" (D.list D.string)) |> D.map (Maybe.withDefault []))
+            (D.maybe (D.field "sfxEnabled" D.bool) |> D.map (Maybe.withDefault True))
+            (D.maybe (D.field "history" (D.list D.string)) |> D.map (Maybe.withDefault []))
         )
         json of
         Ok newModel -> newModel
@@ -413,6 +423,12 @@ checkAchievements model =
             ]
     in List.filterMap (\(name, cond) -> if cond && not (List.member name model.achievements) then Just name else Nothing) all
 
+addToHistory : String -> List String -> List String
+addToHistory input hist =
+    if String.isEmpty input then hist
+    else if List.member input hist then hist
+    else input :: hist
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -433,8 +449,9 @@ update msg model =
                     , hintText = ""
                     , totalGames = model.totalGames + 1
                     , timer = 0
+                    , pendingNewCards = False
                   }
-                , Cmd.none
+                , Task.attempt (\_ -> NoOp) (Dom.focus "expr-input")
                 )
 
         UpdateInput s ->
@@ -447,22 +464,38 @@ update msg model =
                     if abs(result - 24) < 0.0001 then
                         let newStreak = model.streak + 1
                             newBest = max newStreak model.bestStreak
+                            newAch = checkAchievements { model | streak = newStreak, solved = model.solved + 1 }
+                            hasNewAch = not (List.isEmpty newAch)
+                            newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                             newModel = { model
-                                | message = "🎉 正确！「" ++ model.input ++ " = 24」"
+                                | message = if hasNewAch then "🏆 解锁成就！「" ++ model.input ++ " = 24」" else "🎉 正确！「" ++ model.input ++ " = 24」"
                                 , messageType = Success
                                 , streak = newStreak
                                 , solved = model.solved + 1
                                 , bestStreak = newBest
                                 , input = ""
                                 , showHint = False
+                                , achievements = model.achievements ++ newAch
+                                , newAchievements = newAch
+                                , achievementTimer = if hasNewAch then 5 else 0
+                                , history = newHistory
+                                , pendingNewCards = True
                                 }
+                            sfx =
+                                if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
+                                else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40 ]
+                                else [ playSound "success", spawnParticles 30 ]
                         in
-                        ( newModel, Cmd.batch [ generateCards, saveCmd newModel ] )
+                        ( newModel
+                        , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+                        )
                     else
-                        let errModel = { model | message = "❌ 结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = model.input :: model.history }
-                        in ( errModel, Cmd.none )
+                        let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
+                            errModel = { model | message = "❌ 结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = newHistory }
+                        in ( errModel, playSound "error" )
                 Err errMsg ->
-                    let newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0, history = model.input :: model.history }
+                    let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
+                        newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0, history = newHistory }
                     in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error" ] )
 
         ShowHint ->
@@ -488,19 +521,38 @@ update msg model =
                         , message = "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                         , messageType = Info
                         , showAllAnswers = True
+                        , pendingNewCards = True
                     }
             in
-            ( newModel, Cmd.batch [ Task.perform (\_ -> DelayedNewCards) (Process.sleep 1500), saveCmd newModel, playSound "click" ] )
+            ( newModel
+            , Cmd.batch
+                [ if model.pendingNewCards then Cmd.none else Task.perform (\_ -> DelayedNewCards) (Process.sleep 1500)
+                , saveCmd newModel
+                , playSound "click"
+                ]
+            )
 
         Tick _ ->
-            ( { model | timer = model.timer + 1, totalTime = model.totalTime + 1 }, Cmd.none )
+            let newTimer = model.timer + 1
+                newTotalTime = model.totalTime + 1
+                newAchTimer = max 0 (model.achievementTimer - 1)
+                clearedAch = if newAchTimer == 0 && model.achievementTimer > 0 then [] else model.newAchievements
+            in
+            ( { model
+                | timer = newTimer
+                , totalTime = newTotalTime
+                , achievementTimer = newAchTimer
+                , newAchievements = clearedAch
+              }
+            , Cmd.none
+            )
 
         StorageLoaded json ->
             let newModel = decodeStats json model
             in ( newModel, Cmd.none )
 
         DelayedNewCards ->
-            ( model, generateCards )
+            ( { model | pendingNewCards = False }, generateCards )
 
         DismissAchievements ->
             ( { model | newAchievements = [] }, Cmd.none )
@@ -525,10 +577,6 @@ subscriptions model =
     Sub.batch
         [ Time.every 1000 Tick
         , receiveFromStorage StorageLoaded
-        , if not (List.isEmpty model.newAchievements) then
-            Time.every 4000 (\_ -> DismissAchievements)
-          else
-            Sub.none
         ]
 
 
@@ -539,7 +587,6 @@ css =
     node "style"
         []
         [ text """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }
 .container { max-width: 900px; margin: 0 auto; padding: 16px; }
 .header { text-align: center; margin-bottom: 24px; position: relative; }
