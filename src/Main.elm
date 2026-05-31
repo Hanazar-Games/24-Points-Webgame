@@ -3,7 +3,8 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html, div, text, button, input, h1, h2, h3, p, span, br, node, ul, li, code)
 import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, on)
+import Json.Decode as D
 import Random
 import Time
 
@@ -498,6 +499,7 @@ view model =
                 , value model.input
                 , placeholder "输入算式，如 (3+3)*8/2"
                 , onInput UpdateInput
+                , on "keydown" (D.map (\key -> if key == 13 then SubmitAnswer else NoOp) D.int)
                 ]
                 []
             ]
