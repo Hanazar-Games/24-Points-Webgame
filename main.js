@@ -5243,6 +5243,7 @@ var $elm$core$Task$perform = F2(
 	});
 var $elm$browser$Browser$element = _Browser_element;
 var $author$project$Main$Info = {$: 'Info'};
+var $author$project$Main$Normal = {$: 'Normal'};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $author$project$Main$NewCards = function (a) {
 	return {$: 'NewCards', a: a};
@@ -5487,44 +5488,61 @@ var $elm$core$Maybe$withDefault = F2(
 			return _default;
 		}
 	});
-var $author$project$Main$randomCard = A3(
-	$elm$random$Random$map2,
-	F2(
-		function (val, suitIdx) {
-			var suits = _List_fromArray(
-				['♠', '♥', '♣', '♦']);
-			var suit = A2(
-				$elm$core$Maybe$withDefault,
-				'♠',
-				A2($author$project$Main$getAt, suitIdx, suits));
-			var display = function () {
-				switch (val) {
-					case 1:
-						return 'A';
-					case 11:
-						return 'J';
-					case 12:
-						return 'Q';
-					case 13:
-						return 'K';
-					default:
-						return $elm$core$String$fromInt(val);
-				}
-			}();
-			var colors = _List_fromArray(
-				['#2c3e50', '#e74c3c', '#2c3e50', '#e74c3c']);
-			var color = A2(
-				$elm$core$Maybe$withDefault,
-				'#2c3e50',
-				A2($author$project$Main$getAt, suitIdx, colors));
-			return {color: color, display: display, suit: suit, value: val};
-		}),
-	A2($elm$random$Random$int, 1, 13),
-	A2($elm$random$Random$int, 0, 3));
-var $author$project$Main$generateCards = A2(
-	$elm$random$Random$generate,
-	$author$project$Main$NewCards,
-	A2($elm$random$Random$list, 4, $author$project$Main$randomCard));
+var $author$project$Main$randomCard = function (maxVal) {
+	return A3(
+		$elm$random$Random$map2,
+		F2(
+			function (val, suitIdx) {
+				var suits = _List_fromArray(
+					['♠', '♥', '♣', '♦']);
+				var suit = A2(
+					$elm$core$Maybe$withDefault,
+					'♠',
+					A2($author$project$Main$getAt, suitIdx, suits));
+				var display = function () {
+					switch (val) {
+						case 1:
+							return 'A';
+						case 11:
+							return 'J';
+						case 12:
+							return 'Q';
+						case 13:
+							return 'K';
+						default:
+							return $elm$core$String$fromInt(val);
+					}
+				}();
+				var colors = _List_fromArray(
+					['#2c3e50', '#e74c3c', '#2c3e50', '#e74c3c']);
+				var color = A2(
+					$elm$core$Maybe$withDefault,
+					'#2c3e50',
+					A2($author$project$Main$getAt, suitIdx, colors));
+				return {color: color, display: display, suit: suit, value: val};
+			}),
+		A2($elm$random$Random$int, 1, maxVal),
+		A2($elm$random$Random$int, 0, 3));
+};
+var $author$project$Main$generateCards = function (diff) {
+	var maxVal = function () {
+		switch (diff.$) {
+			case 'Easy':
+				return 10;
+			case 'Normal':
+				return 13;
+			default:
+				return 13;
+		}
+	}();
+	return A2(
+		$elm$random$Random$generate,
+		$author$project$Main$NewCards,
+		A2(
+			$elm$random$Random$list,
+			4,
+			$author$project$Main$randomCard(maxVal)));
+};
 var $elm$json$Json$Encode$null = _Json_encodeNull;
 var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	'loadFromStorage',
@@ -5533,11 +5551,11 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	});
 var $author$project$Main$init = function (_v0) {
 	return _Utils_Tuple2(
-		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', history: _List_Nil, input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, difficulty: $author$project$Main$Normal, hintText: '', history: _List_Nil, input: '', liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
-					$author$project$Main$generateCards,
+					$author$project$Main$generateCards($author$project$Main$Normal),
 					$author$project$Main$loadFromStorage(_Utils_Tuple0)
 				])));
 };
@@ -6056,109 +6074,6 @@ var $author$project$Main$checkAchievements = function (model) {
 		},
 		all);
 };
-var $elm$json$Json$Encode$string = _Json_wrap;
-var $author$project$Main$copyToClipboard = _Platform_outgoingPort('copyToClipboard', $elm$json$Json$Encode$string);
-var $elm$json$Json$Decode$bool = _Json_decodeBool;
-var $elm$json$Json$Decode$decodeString = _Json_runOnString;
-var $elm$json$Json$Decode$field = _Json_decodeField;
-var $elm$json$Json$Decode$int = _Json_decodeInt;
-var $elm$json$Json$Decode$list = _Json_decodeList;
-var $elm$json$Json$Decode$map7 = _Json_map7;
-var $elm$json$Json$Decode$oneOf = _Json_oneOf;
-var $elm$json$Json$Decode$maybe = function (decoder) {
-	return $elm$json$Json$Decode$oneOf(
-		_List_fromArray(
-			[
-				A2($elm$json$Json$Decode$map, $elm$core$Maybe$Just, decoder),
-				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
-			]));
-};
-var $author$project$Main$decodeStats = F2(
-	function (json, model) {
-		var _v0 = A2(
-			$elm$json$Json$Decode$decodeString,
-			A8(
-				$elm$json$Json$Decode$map7,
-				F7(
-					function (bs, tsD, tsk, tt, ach, sfx, hist) {
-						return _Utils_update(
-							model,
-							{
-								achievements: _Utils_ap(model.achievements, ach),
-								bestStreak: A2($elm$core$Basics$max, model.bestStreak, bs),
-								history: _Utils_ap(model.history, hist),
-								sfxEnabled: sfx,
-								skipped: model.skipped + tsk,
-								solved: model.solved + tsD,
-								totalTime: model.totalTime + tt
-							});
-					}),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'bestStreak', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalSolved', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalSkipped', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'achievements',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(true),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'sfxEnabled', $elm$json$Json$Decode$bool))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'history',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))),
-			json);
-		if (_v0.$ === 'Ok') {
-			var newModel = _v0.a;
-			return newModel;
-		} else {
-			return model;
-		}
-	});
-var $elm$core$String$fromFloat = _String_fromNumber;
-var $elm$core$Basics$round = _Basics_round;
-var $author$project$Main$fmt = function (n) {
-	return _Utils_eq(
-		n,
-		$elm$core$Basics$round(n)) ? $elm$core$String$fromInt(
-		$elm$core$Basics$round(n)) : $elm$core$String$fromFloat(n);
-};
-var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
-var $elm$core$List$isEmpty = function (xs) {
-	if (!xs.b) {
-		return true;
-	} else {
-		return false;
-	}
-};
-var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$core$Maybe$andThen = F2(
 	function (callback, maybeValue) {
 		if (maybeValue.$ === 'Just') {
@@ -6268,6 +6183,21 @@ var $author$project$Main$extractNums = function (e) {
 			return _Utils_ap(
 				$author$project$Main$extractNums(l),
 				$author$project$Main$extractNums(r));
+	}
+};
+var $elm$core$String$fromFloat = _String_fromNumber;
+var $elm$core$Basics$round = _Basics_round;
+var $author$project$Main$fmt = function (n) {
+	return _Utils_eq(
+		n,
+		$elm$core$Basics$round(n)) ? $elm$core$String$fromInt(
+		$elm$core$Basics$round(n)) : $elm$core$String$fromFloat(n);
+};
+var $elm$core$List$isEmpty = function (xs) {
+	if (!xs.b) {
+		return true;
+	} else {
+		return false;
 	}
 };
 var $elm$core$List$sortBy = _List_sortBy;
@@ -6517,6 +6447,133 @@ var $author$project$Main$tokenize = function (s) {
 		$elm$core$String$toList(
 			A3($elm$core$String$replace, ' ', '', s)));
 };
+var $author$project$Main$computeLiveResult = F2(
+	function (input, cardValues) {
+		if ($elm$core$String$isEmpty(input)) {
+			return '';
+		} else {
+			var tokens = $author$project$Main$tokenize(input);
+			var _v0 = $author$project$Main$parseExpr(tokens);
+			if (_v0.$ === 'Nothing') {
+				return '';
+			} else {
+				var _v1 = _v0.a;
+				var expr = _v1.a;
+				var rest = _v1.b;
+				if (!$elm$core$List$isEmpty(rest)) {
+					return '';
+				} else {
+					var _v2 = $author$project$Main$evalExpr(expr);
+					if (_v2.$ === 'Nothing') {
+						return '⚠️ 计算错误';
+					} else {
+						var result = _v2.a;
+						var usedNums = $author$project$Main$extractNums(expr);
+						var numsOk = A2($author$project$Main$matchCards, cardValues, usedNums);
+						return (!numsOk) ? '' : ('= ' + $author$project$Main$fmt(result));
+					}
+				}
+			}
+		}
+	});
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $author$project$Main$copyToClipboard = _Platform_outgoingPort('copyToClipboard', $elm$json$Json$Encode$string);
+var $elm$json$Json$Decode$bool = _Json_decodeBool;
+var $elm$json$Json$Decode$decodeString = _Json_runOnString;
+var $elm$json$Json$Decode$field = _Json_decodeField;
+var $elm$json$Json$Decode$int = _Json_decodeInt;
+var $elm$json$Json$Decode$list = _Json_decodeList;
+var $elm$json$Json$Decode$map7 = _Json_map7;
+var $elm$json$Json$Decode$oneOf = _Json_oneOf;
+var $elm$json$Json$Decode$maybe = function (decoder) {
+	return $elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$map, $elm$core$Maybe$Just, decoder),
+				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+			]));
+};
+var $author$project$Main$decodeStats = F2(
+	function (json, model) {
+		var _v0 = A2(
+			$elm$json$Json$Decode$decodeString,
+			A8(
+				$elm$json$Json$Decode$map7,
+				F7(
+					function (bs, tsD, tsk, tt, ach, sfx, hist) {
+						return _Utils_update(
+							model,
+							{
+								achievements: _Utils_ap(model.achievements, ach),
+								bestStreak: A2($elm$core$Basics$max, model.bestStreak, bs),
+								history: _Utils_ap(model.history, hist),
+								sfxEnabled: sfx,
+								skipped: model.skipped + tsk,
+								solved: model.solved + tsD,
+								totalTime: model.totalTime + tt
+							});
+					}),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(0),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'bestStreak', $elm$json$Json$Decode$int))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(0),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'totalSolved', $elm$json$Json$Decode$int))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(0),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'totalSkipped', $elm$json$Json$Decode$int))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(0),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(_List_Nil),
+					$elm$json$Json$Decode$maybe(
+						A2(
+							$elm$json$Json$Decode$field,
+							'achievements',
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(true),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'sfxEnabled', $elm$json$Json$Decode$bool))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(_List_Nil),
+					$elm$json$Json$Decode$maybe(
+						A2(
+							$elm$json$Json$Decode$field,
+							'history',
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))),
+			json);
+		if (_v0.$ === 'Ok') {
+			var newModel = _v0.a;
+			return newModel;
+		} else {
+			return model;
+		}
+	});
+var $author$project$Main$difficultyName = function (diff) {
+	switch (diff.$) {
+		case 'Easy':
+			return '初级（1-10）';
+		case 'Normal':
+			return '中级（1-13）';
+		default:
+			return '高级（1-13）';
+	}
+};
+var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
+var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $author$project$Main$parseAndValidate = F2(
 	function (input, cardValues) {
 		var tokens = $author$project$Main$tokenize(input);
@@ -6569,101 +6626,6 @@ var $elm$json$Json$Encode$object = function (pairs) {
 				}),
 			_Json_emptyObject(_Utils_Tuple0),
 			pairs));
-};
-var $author$project$Main$encodeStats = function (model) {
-	return A2(
-		$elm$json$Json$Encode$encode,
-		0,
-		$elm$json$Json$Encode$object(
-			_List_fromArray(
-				[
-					_Utils_Tuple2(
-					'bestStreak',
-					$elm$json$Json$Encode$int(model.bestStreak)),
-					_Utils_Tuple2(
-					'totalSolved',
-					$elm$json$Json$Encode$int(model.solved)),
-					_Utils_Tuple2(
-					'totalSkipped',
-					$elm$json$Json$Encode$int(model.skipped)),
-					_Utils_Tuple2(
-					'totalTime',
-					$elm$json$Json$Encode$int(model.totalTime)),
-					_Utils_Tuple2(
-					'achievements',
-					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
-					_Utils_Tuple2(
-					'sfxEnabled',
-					$elm$json$Json$Encode$bool(model.sfxEnabled)),
-					_Utils_Tuple2(
-					'history',
-					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.history))
-				])));
-};
-var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
-var $author$project$Main$saveCmd = function (model) {
-	return $author$project$Main$saveToStorage(
-		$author$project$Main$encodeStats(model));
-};
-var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
-var $elm$core$Process$sleep = _Process_sleep;
-var $author$project$Main$Add = {$: 'Add'};
-var $author$project$Main$Div = {$: 'Div'};
-var $author$project$Main$Mul = {$: 'Mul'};
-var $author$project$Main$Sub = {$: 'Sub'};
-var $elm$core$List$append = F2(
-	function (xs, ys) {
-		if (!ys.b) {
-			return xs;
-		} else {
-			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
-		}
-	});
-var $elm$core$List$concat = function (lists) {
-	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
-};
-var $elm$core$List$concatMap = F2(
-	function (f, list) {
-		return $elm$core$List$concat(
-			A2($elm$core$List$map, f, list));
-	});
-var $author$project$Main$allPairs = function (n) {
-	return A2(
-		$elm$core$List$concatMap,
-		function (i) {
-			return A2(
-				$elm$core$List$map,
-				function (j) {
-					return _Utils_Tuple2(i, j);
-				},
-				A2($elm$core$List$range, i + 1, n - 1));
-		},
-		A2($elm$core$List$range, 0, n - 2));
-};
-var $author$project$Main$applyOp = F3(
-	function (op, a, b) {
-		switch (op.$) {
-			case 'Add':
-				return $elm$core$Maybe$Just(a + b);
-			case 'Sub':
-				return $elm$core$Maybe$Just(a - b);
-			case 'Mul':
-				return $elm$core$Maybe$Just(a * b);
-			default:
-				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
-		}
-	});
-var $author$project$Main$opSymbol = function (op) {
-	switch (op.$) {
-		case 'Add':
-			return '+';
-		case 'Sub':
-			return '-';
-		case 'Mul':
-			return '*';
-		default:
-			return '/';
-	}
 };
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
@@ -6791,6 +6753,104 @@ var $elm$core$List$take = F2(
 	function (n, list) {
 		return A3($elm$core$List$takeFast, 0, n, list);
 	});
+var $author$project$Main$encodeStats = function (model) {
+	return A2(
+		$elm$json$Json$Encode$encode,
+		0,
+		$elm$json$Json$Encode$object(
+			_List_fromArray(
+				[
+					_Utils_Tuple2(
+					'bestStreak',
+					$elm$json$Json$Encode$int(model.bestStreak)),
+					_Utils_Tuple2(
+					'totalSolved',
+					$elm$json$Json$Encode$int(model.solved)),
+					_Utils_Tuple2(
+					'totalSkipped',
+					$elm$json$Json$Encode$int(model.skipped)),
+					_Utils_Tuple2(
+					'totalTime',
+					$elm$json$Json$Encode$int(model.totalTime)),
+					_Utils_Tuple2(
+					'achievements',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
+					_Utils_Tuple2(
+					'sfxEnabled',
+					$elm$json$Json$Encode$bool(model.sfxEnabled)),
+					_Utils_Tuple2(
+					'history',
+					A2(
+						$elm$json$Json$Encode$list,
+						$elm$json$Json$Encode$string,
+						A2($elm$core$List$take, 20, model.history)))
+				])));
+};
+var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
+var $author$project$Main$saveCmd = function (model) {
+	return $author$project$Main$saveToStorage(
+		$author$project$Main$encodeStats(model));
+};
+var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
+var $elm$core$Process$sleep = _Process_sleep;
+var $author$project$Main$Add = {$: 'Add'};
+var $author$project$Main$Div = {$: 'Div'};
+var $author$project$Main$Mul = {$: 'Mul'};
+var $author$project$Main$Sub = {$: 'Sub'};
+var $elm$core$List$append = F2(
+	function (xs, ys) {
+		if (!ys.b) {
+			return xs;
+		} else {
+			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
+		}
+	});
+var $elm$core$List$concat = function (lists) {
+	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
+};
+var $elm$core$List$concatMap = F2(
+	function (f, list) {
+		return $elm$core$List$concat(
+			A2($elm$core$List$map, f, list));
+	});
+var $author$project$Main$allPairs = function (n) {
+	return A2(
+		$elm$core$List$concatMap,
+		function (i) {
+			return A2(
+				$elm$core$List$map,
+				function (j) {
+					return _Utils_Tuple2(i, j);
+				},
+				A2($elm$core$List$range, i + 1, n - 1));
+		},
+		A2($elm$core$List$range, 0, n - 2));
+};
+var $author$project$Main$applyOp = F3(
+	function (op, a, b) {
+		switch (op.$) {
+			case 'Add':
+				return $elm$core$Maybe$Just(a + b);
+			case 'Sub':
+				return $elm$core$Maybe$Just(a - b);
+			case 'Mul':
+				return $elm$core$Maybe$Just(a * b);
+			default:
+				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
+		}
+	});
+var $author$project$Main$opSymbol = function (op) {
+	switch (op.$) {
+		case 'Add':
+			return '+';
+		case 'Sub':
+			return '-';
+		case 'Mul':
+			return '*';
+		default:
+			return '/';
+	}
+};
 var $author$project$Main$removeAt = F2(
 	function (idx, list) {
 		return _Utils_ap(
@@ -6914,18 +6974,26 @@ var $author$project$Main$simplifySolution = function (s) {
 		return s;
 	}
 };
+var $elm$core$Set$Set_elm_builtin = function (a) {
+	return {$: 'Set_elm_builtin', a: a};
+};
+var $elm$core$Set$empty = $elm$core$Set$Set_elm_builtin($elm$core$Dict$empty);
+var $elm$core$Set$insert = F2(
+	function (key, _v0) {
+		var dict = _v0.a;
+		return $elm$core$Set$Set_elm_builtin(
+			A3($elm$core$Dict$insert, key, _Utils_Tuple0, dict));
+	});
 var $author$project$Main$unique = function (list) {
-	return A3(
-		$elm$core$List$foldl,
-		F2(
-			function (x, acc) {
-				return A2($elm$core$List$member, x, acc) ? acc : _Utils_ap(
-					acc,
-					_List_fromArray(
-						[x]));
-			}),
-		_List_Nil,
-		list);
+	return $elm$core$Set$toList(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (x, set) {
+					return A2($elm$core$Set$insert, x, set);
+				}),
+			$elm$core$Set$empty,
+			list));
 };
 var $author$project$Main$solve24 = function (nums) {
 	var initVals = A2(
@@ -6966,7 +7034,9 @@ var $author$project$Main$update = F2(
 							return c.value;
 						},
 						cards));
-				return $elm$core$List$isEmpty(solutions) ? _Utils_Tuple2(model, $author$project$Main$generateCards) : _Utils_Tuple2(
+				return $elm$core$List$isEmpty(solutions) ? _Utils_Tuple2(
+					model,
+					$author$project$Main$generateCards(model.difficulty)) : _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
@@ -6981,18 +7051,32 @@ var $author$project$Main$update = F2(
 							timer: 0,
 							totalGames: model.totalGames + 1
 						}),
-					A2(
-						$elm$core$Task$attempt,
-						function (_v1) {
-							return $author$project$Main$NoOp;
-						},
-						$elm$browser$Browser$Dom$focus('expr-input')));
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								$author$project$Main$playSound('deal'),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v1) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							])));
 			case 'UpdateInput':
 				var s = msg.a;
+				var live = A2(
+					$author$project$Main$computeLiveResult,
+					s,
+					A2(
+						$elm$core$List$map,
+						function (c) {
+							return c.value;
+						},
+						model.cards));
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{input: s}),
+						{input: s, liveResult: live}),
 					$elm$core$Platform$Cmd$none);
 			case 'SubmitAnswer':
 				var cardValues = A2(
@@ -7125,11 +7209,11 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, streak: 0, timer: 0}),
+						{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, streak: 0, timer: 0}),
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
 							[
-								$author$project$Main$generateCards,
+								$author$project$Main$generateCards(model.difficulty),
 								$author$project$Main$playSound('click')
 							])));
 			case 'Skip':
@@ -7179,7 +7263,7 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{pendingNewCards: false}),
-					$author$project$Main$generateCards);
+					$author$project$Main$generateCards(model.difficulty));
 			case 'DismissAchievements':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -7194,11 +7278,12 @@ var $author$project$Main$update = F2(
 					newModel,
 					$author$project$Main$setSFX(newModel.sfxEnabled));
 			case 'ClearHistory':
+				var newModel = _Utils_update(
+					model,
+					{history: _List_Nil});
 				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{history: _List_Nil}),
-					$elm$core$Platform$Cmd$none);
+					newModel,
+					$author$project$Main$saveCmd(newModel));
 			case 'CopyAnswer':
 				var ans = msg.a;
 				return _Utils_Tuple2(
@@ -7206,15 +7291,40 @@ var $author$project$Main$update = F2(
 						model,
 						{message: '📋 已复制到剪贴板', messageType: $author$project$Main$Info}),
 					$author$project$Main$copyToClipboard(ans + ' = 24'));
+			case 'ChangeDifficulty':
+				var diff = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							difficulty: diff,
+							message: '难度切换为' + $author$project$Main$difficultyName(diff),
+							messageType: $author$project$Main$Info,
+							newAchievements: _List_Nil,
+							pendingNewCards: true,
+							showAllAnswers: false,
+							streak: 0
+						}),
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								$author$project$Main$generateCards(diff),
+								$author$project$Main$playSound('click')
+							])));
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
 	});
+var $author$project$Main$ChangeDifficulty = function (a) {
+	return {$: 'ChangeDifficulty', a: a};
+};
 var $author$project$Main$ClearHistory = {$: 'ClearHistory'};
 var $author$project$Main$CopyAnswer = function (a) {
 	return {$: 'CopyAnswer', a: a};
 };
 var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
+var $author$project$Main$Easy = {$: 'Easy'};
+var $author$project$Main$Hard = {$: 'Hard'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
 var $author$project$Main$ShowHint = {$: 'ShowHint'};
@@ -7249,7 +7359,7 @@ var $author$project$Main$css = A3(
 	_List_Nil,
 	_List_fromArray(
 		[
-			$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
+			$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #8892b0; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.diff-btn:hover { background: rgba(255,255,255,0.1); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; border-color: transparent; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; color: #8892b0; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
 		]));
 var $author$project$Main$decodeKey = function (_v0) {
 	var key = _v0.key;
@@ -7275,7 +7385,12 @@ var $author$project$Main$keyDecoder = A3(
 			return {ctrlKey: c, key: k};
 		}),
 	A2($elm$json$Json$Decode$field, 'key', $elm$json$Json$Decode$string),
-	A2($elm$json$Json$Decode$field, 'ctrlKey', $elm$json$Json$Decode$bool));
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$field, 'ctrlKey', $elm$json$Json$Decode$bool),
+				$elm$json$Json$Decode$succeed(false)
+			])));
 var $elm$html$Html$li = _VirtualDom_node('li');
 var $author$project$Main$msgClass = function (mt) {
 	switch (mt.$) {
@@ -7346,37 +7461,42 @@ var $elm$html$Html$Attributes$title = $elm$html$Html$Attributes$stringProperty('
 var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
 var $elm$html$Html$ul = _VirtualDom_node('ul');
 var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
-var $author$project$Main$viewAchievementToast = function (name) {
-	return A2(
-		$elm$html$Html$div,
-		_List_fromArray(
-			[
-				$elm$html$Html$Attributes$class('achievement-toast')
-			]),
-		_List_fromArray(
-			[
-				A2(
-				$elm$html$Html$div,
-				_List_fromArray(
-					[
-						$elm$html$Html$Attributes$class('ach-title')
-					]),
-				_List_fromArray(
-					[
-						$elm$html$Html$text('🏆 解锁成就')
-					])),
-				A2(
-				$elm$html$Html$div,
-				_List_fromArray(
-					[
-						$elm$html$Html$Attributes$class('ach-name')
-					]),
-				_List_fromArray(
-					[
-						$elm$html$Html$text(name)
-					]))
-			]));
-};
+var $author$project$Main$viewAchievementToast = F2(
+	function (idx, name) {
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('achievement-toast'),
+					A2(
+					$elm$html$Html$Attributes$style,
+					'top',
+					$elm$core$String$fromInt(20 + (idx * 80)) + 'px')
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('ach-title')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('🏆 解锁成就')
+						])),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('ach-name')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(name)
+						]))
+				]));
+	});
 var $author$project$Main$viewCard = function (card) {
 	return A2(
 		$elm$html$Html$div,
@@ -7718,6 +7838,54 @@ var $author$project$Main$view = function (model) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
+						$elm$html$Html$Attributes$class('difficulty-row')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.difficulty, $author$project$Main$Easy) ? 'diff-btn active' : 'diff-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$ChangeDifficulty($author$project$Main$Easy))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('初级')
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.difficulty, $author$project$Main$Normal) ? 'diff-btn active' : 'diff-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$ChangeDifficulty($author$project$Main$Normal))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('中级')
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.difficulty, $author$project$Main$Hard) ? 'diff-btn active' : 'diff-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$ChangeDifficulty($author$project$Main$Hard))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('高级')
+							]))
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
 						$elm$html$Html$Attributes$class('input-area')
 					]),
 				_List_fromArray(
@@ -7738,6 +7906,17 @@ var $author$project$Main$view = function (model) {
 								A2($elm$json$Json$Decode$map, $author$project$Main$decodeKey, $author$project$Main$keyDecoder))
 							]),
 						_List_Nil)
+					])),
+				$elm$core$String$isEmpty(model.liveResult) ? $elm$html$Html$text('') : A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class(
+						A2($elm$core$String$contains, '= 24', model.liveResult) ? 'live-result valid' : 'live-result')
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text(model.liveResult)
 					])),
 				A2(
 				$elm$html$Html$div,
@@ -7916,7 +8095,7 @@ var $author$project$Main$view = function (model) {
 				$elm$html$Html$div,
 				_List_Nil,
 				_Utils_ap(
-					A2($elm$core$List$map, $author$project$Main$viewAchievementToast, model.newAchievements),
+					A2($elm$core$List$indexedMap, $author$project$Main$viewAchievementToast, model.newAchievements),
 					_List_fromArray(
 						[
 							A2(

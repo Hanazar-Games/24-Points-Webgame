@@ -2,13 +2,14 @@ port module Main exposing (main)
 
 import Browser
 import Browser.Dom as Dom
-import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
-import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id, title)
+import Html exposing (Html, div, text, button, input, h1, h3, h4, p, span, br, node, ul, li, code)
+import Html.Attributes exposing (class, value, style, placeholder, type_, id, title)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
 import Json.Encode as E
 import Process
 import Random
+import Set
 import Task
 import Time
 
@@ -21,6 +22,8 @@ type alias Card =
     , display : String
     , color : String
     }
+
+type Difficulty = Easy | Normal | Hard
 
 type MsgType = Success | Error | Info | None
 
@@ -46,6 +49,8 @@ type alias Model =
     , history : List String
     , sfxEnabled : Bool
     , pendingNewCards : Bool
+    , difficulty : Difficulty
+    , liveResult : String
     }
 
 type Msg
@@ -63,6 +68,7 @@ type Msg
     | ToggleSFX
     | ClearHistory
     | CopyAnswer String
+    | ChangeDifficulty Difficulty
     | NoOp
 
 
@@ -265,7 +271,7 @@ combinePair vals (i, j) =
         [(a, b), (b, a)]
 
 unique : List String -> List String
-unique list = List.foldl (\x acc -> if List.member x acc then acc else acc ++ [x]) [] list
+unique list = List.foldl (\x set -> Set.insert x set) Set.empty list |> Set.toList
 
 -- Expression simplification: remove unnecessary parentheses
 exprToStringSimplified : Expr -> String
@@ -309,8 +315,8 @@ solve24 nums =
 
 -- ============ RANDOM CARDS ============
 
-randomCard : Random.Generator Card
-randomCard =
+randomCard : Int -> Random.Generator Card
+randomCard maxVal =
     Random.map2
         (\val suitIdx ->
             let suits = ["♠", "♥", "♣", "♦"]
@@ -325,11 +331,18 @@ randomCard =
                     _ -> String.fromInt val
             in { value = val, suit = suit, display = display, color = color }
         )
-        (Random.int 1 13)
+        (Random.int 1 maxVal)
         (Random.int 0 3)
 
-generateCards : Cmd Msg
-generateCards = Random.generate NewCards (Random.list 4 randomCard)
+generateCards : Difficulty -> Cmd Msg
+generateCards diff =
+    let
+        maxVal = case diff of
+            Easy -> 10
+            Normal -> 13
+            Hard -> 13
+    in
+    Random.generate NewCards (Random.list 4 (randomCard maxVal))
 
 
 -- ============ INIT / UPDATE ============
@@ -357,8 +370,10 @@ init _ =
       , history = []
       , sfxEnabled = True
       , pendingNewCards = False
+      , difficulty = Normal
+      , liveResult = ""
       }
-    , Cmd.batch [ generateCards, loadFromStorage () ]
+    , Cmd.batch [ generateCards Normal, loadFromStorage () ]
     )
 
 
@@ -374,7 +389,7 @@ encodeStats model =
             , ("totalTime", E.int model.totalTime)
             , ("achievements", E.list E.string model.achievements)
             , ("sfxEnabled", E.bool model.sfxEnabled)
-            , ("history", E.list E.string model.history)
+            , ("history", E.list E.string (List.take 20 model.history))
             ]
         )
 
@@ -429,6 +444,25 @@ addToHistory input hist =
     else if List.member input hist then hist
     else input :: hist
 
+computeLiveResult : String -> List Float -> String
+computeLiveResult input cardValues =
+    if String.isEmpty input then ""
+    else
+        let tokens = tokenize input
+        in case parseExpr tokens of
+            Nothing -> ""
+            Just (expr, rest) ->
+                if not (List.isEmpty rest) then ""
+                else
+                    case evalExpr expr of
+                        Nothing -> "⚠️ 计算错误"
+                        Just result ->
+                            let usedNums = extractNums expr
+                                numsOk = matchCards cardValues usedNums
+                            in
+                            if not numsOk then ""
+                            else "= " ++ fmt result
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -437,7 +471,7 @@ update msg model =
             let solutions = solve24 (List.map (\c -> toFloat c.value) cards)
             in
             if List.isEmpty solutions then
-                ( model, generateCards )
+                ( model, generateCards model.difficulty )
             else
                 ( { model
                     | cards = cards
@@ -451,11 +485,12 @@ update msg model =
                     , timer = 0
                     , pendingNewCards = False
                   }
-                , Task.attempt (\_ -> NoOp) (Dom.focus "expr-input")
+                , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ]
                 )
 
         UpdateInput s ->
-            ( { model | input = s }, Cmd.none )
+            let live = computeLiveResult s (List.map (\c -> toFloat c.value) model.cards)
+            in ( { model | input = s, liveResult = live }, Cmd.none )
 
         SubmitAnswer ->
             let cardValues = List.map (\c -> toFloat c.value) model.cards
@@ -509,8 +544,8 @@ update msg model =
             ( { model | showAllAnswers = True, message = "📋 显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, playSound "click" )
 
         NewGame ->
-            ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [] }
-            , Cmd.batch [ generateCards, playSound "click" ]
+            ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
+            , Cmd.batch [ generateCards model.difficulty, playSound "click" ]
             )
 
         Skip ->
@@ -552,7 +587,7 @@ update msg model =
             in ( newModel, Cmd.none )
 
         DelayedNewCards ->
-            ( { model | pendingNewCards = False }, generateCards )
+            ( { model | pendingNewCards = False }, generateCards model.difficulty )
 
         DismissAchievements ->
             ( { model | newAchievements = [] }, Cmd.none )
@@ -562,14 +597,27 @@ update msg model =
             in ( newModel, setSFX newModel.sfxEnabled )
 
         ClearHistory ->
-            ( { model | history = [] }, Cmd.none )
+            let newModel = { model | history = [] }
+            in ( newModel, saveCmd newModel )
 
         CopyAnswer ans ->
             ( { model | message = "📋 已复制到剪贴板", messageType = Info }
             , copyToClipboard (ans ++ " = 24")
             )
 
+        ChangeDifficulty diff ->
+            ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
+            , Cmd.batch [ generateCards diff, playSound "click" ]
+            )
+
         NoOp -> (model, Cmd.none )
+
+difficultyName : Difficulty -> String
+difficultyName diff =
+    case diff of
+        Easy -> "初级（1-10）"
+        Normal -> "中级（1-13）"
+        Hard -> "高级（1-13）"
 
 
 subscriptions : Model -> Sub Msg
@@ -663,6 +711,12 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: radi
 .answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }
 .sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }
 .sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }
+.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }
+.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #8892b0; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+.diff-btn:hover { background: rgba(255,255,255,0.1); }
+.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; border-color: transparent; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }
+.live-result { text-align: center; font-family: monospace; font-size: 1.1em; color: #8892b0; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }
+.live-result.valid { color: #2ecc71; font-weight: 700; }
 .history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }
 .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
@@ -705,9 +759,9 @@ viewCard card =
             ]
         ]
 
-viewAchievementToast : String -> Html Msg
-viewAchievementToast name =
-    div [ class "achievement-toast" ]
+viewAchievementToast : Int -> String -> Html Msg
+viewAchievementToast idx name =
+    div [ class "achievement-toast", style "top" (String.fromInt (20 + idx * 80) ++ "px") ]
         [ div [ class "ach-title" ] [ text "🏆 解锁成就" ]
         , div [ class "ach-name" ] [ text name ]
         ]
@@ -716,7 +770,7 @@ keyDecoder : D.Decoder { key : String, ctrlKey : Bool }
 keyDecoder =
     D.map2 (\k c -> { key = k, ctrlKey = c })
         (D.field "key" D.string)
-        (D.field "ctrlKey" D.bool)
+        (D.oneOf [ D.field "ctrlKey" D.bool, D.succeed False ])
 
 decodeKey : { key : String, ctrlKey : Bool } -> Msg
 decodeKey { key, ctrlKey } =
@@ -767,6 +821,11 @@ view model =
             div [ class "hint-box" ] [ text ("💡 参考解法：" ++ model.hintText) ]
           else
             text ""
+        , div [ class "difficulty-row" ]
+            [ button [ class (if model.difficulty == Easy then "diff-btn active" else "diff-btn"), onClick (ChangeDifficulty Easy) ] [ text "初级" ]
+            , button [ class (if model.difficulty == Normal then "diff-btn active" else "diff-btn"), onClick (ChangeDifficulty Normal) ] [ text "中级" ]
+            , button [ class (if model.difficulty == Hard then "diff-btn active" else "diff-btn"), onClick (ChangeDifficulty Hard) ] [ text "高级" ]
+            ]
         , div [ class "input-area" ]
             [ input
                 [ class "expr-input"
@@ -779,6 +838,10 @@ view model =
                 ]
                 []
             ]
+        , if String.isEmpty model.liveResult then
+            text ""
+          else
+            div [ class (if String.contains "= 24" model.liveResult then "live-result valid" else "live-result") ] [ text model.liveResult ]
 
         , div [ class "buttons-row" ]
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "✓ 提交" ]
@@ -807,7 +870,7 @@ view model =
             text ""
         , if not (List.isEmpty model.newAchievements) then
             div []
-                (List.map viewAchievementToast model.newAchievements
+                (List.indexedMap viewAchievementToast model.newAchievements
                     ++ [ div [ style "text-align" "center", style "margin-top" "8px" ] [ button [ class "btn btn-secondary", onClick DismissAchievements ] [ text "知道了 👍" ] ] ]
                 )
           else

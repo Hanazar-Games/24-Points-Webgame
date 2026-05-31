@@ -1,10 +1,10 @@
-# 🃏 24点挑战 - 扑克牌益智游戏
+# 🃏 24点挑战 v0.3.2 - 扑克牌益智游戏
 
 一个用 **Elm** 语言构建的纯函数式 24点 Web 游戏，零运行时错误，直接部署在 GitHub Pages。
 
 ## 在线游玩
 
-👉 **[点击开始游戏](https://28zhong.lecheng.github.io/24-Points-Webgame)**（部署后生效）
+👉 **[点击开始游戏](https://hanazar-games.github.io/24-Points-Webgame)**
 
 ## 游戏规则
 
