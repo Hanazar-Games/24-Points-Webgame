@@ -66,6 +66,9 @@ type alias Model =
     , dailyBestTime : Int
     , fastestSolve : Int
     , totalAttempts : Int
+    , keypadEnabled : Bool
+    , sharedCount : Int
+    , stepsWithKeypad : Int
     }
 
 type Msg
@@ -89,6 +92,9 @@ type Msg
     | StartTimeAttack
     | CardClick Int
     | BackspaceInput
+    | KeypadInput String
+    | ToggleKeypad
+    | ShareProblem
     | NoOp
 
 type alias Flags =
@@ -341,6 +347,24 @@ hasDivision s = String.contains "/" s
 hasDivisionSolution : List String -> Bool
 hasDivisionSolution solutions = List.any hasDivision solutions
 
+exprHasDiv : Expr -> Bool
+exprHasDiv e =
+    case e of
+        Num _ -> False
+        DivE _ _ -> True
+        AddE l r -> exprHasDiv l || exprHasDiv r
+        SubE l r -> exprHasDiv l || exprHasDiv r
+        MulE l r -> exprHasDiv l || exprHasDiv r
+
+countOps : Expr -> Int
+countOps e =
+    case e of
+        Num _ -> 0
+        AddE l r -> 1 + countOps l + countOps r
+        SubE l r -> 1 + countOps l + countOps r
+        MulE l r -> 1 + countOps l + countOps r
+        DivE l r -> 1 + countOps l + countOps r
+
 
 -- ============ HINT SYSTEM ============
 
@@ -487,6 +511,9 @@ init flags =
       , dailyBestTime = 0
       , fastestSolve = 0
       , totalAttempts = 0
+      , keypadEnabled = True
+      , sharedCount = 0
+      , stepsWithKeypad = 0
       }
     , Cmd.batch [ generateCards Normal, loadFromStorage () ]
     )
@@ -525,6 +552,9 @@ encodeStats model =
             , ("dailyBestTime", E.int model.dailyBestTime)
             , ("fastestSolve", E.int model.fastestSolve)
             , ("totalAttempts", E.int model.totalAttempts)
+            , ("keypadEnabled", E.bool model.keypadEnabled)
+            , ("sharedCount", E.int model.sharedCount)
+            , ("stepsWithKeypad", E.int model.stepsWithKeypad)
             ]
         )
 
@@ -555,8 +585,8 @@ decodeStats json model =
         fullDecoder =
             D.andThen
                 (\base ->
-                    D.map5
-                        (\tab dcd dbt fs ta ->
+                    D.map8
+                        (\tab dcd dbt fs ta kb sc swk ->
                             { model
                                 | bestStreak = max model.bestStreak base.bestStreak
                                 , solved = model.solved + base.totalSolved
@@ -571,6 +601,9 @@ decodeStats json model =
                                 , dailyBestTime = dbt
                                 , fastestSolve = if fs > 0 then fs else model.fastestSolve
                                 , totalAttempts = model.totalAttempts + ta
+                                , keypadEnabled = kb
+                                , sharedCount = sc
+                                , stepsWithKeypad = swk
                                 }
                         )
                         (D.maybe (D.field "timeAttackBest" D.int) |> D.map (Maybe.withDefault 0))
@@ -578,6 +611,9 @@ decodeStats json model =
                         (D.maybe (D.field "dailyBestTime" D.int) |> D.map (Maybe.withDefault 0))
                         (D.maybe (D.field "fastestSolve" D.int) |> D.map (Maybe.withDefault 0))
                         (D.maybe (D.field "totalAttempts" D.int) |> D.map (Maybe.withDefault 0))
+                        (D.maybe (D.field "keypadEnabled" D.bool) |> D.map (Maybe.withDefault True))
+                        (D.maybe (D.field "sharedCount" D.int) |> D.map (Maybe.withDefault 0))
+                        (D.maybe (D.field "stepsWithKeypad" D.int) |> D.map (Maybe.withDefault 0))
                 )
                 baseDecoder
     in
@@ -593,7 +629,7 @@ saveCmd model =
 -- ============ ACHIEVEMENTS ============
 
 allAchievements : List String
-allAchievements = ["首杀", "三连冠", "五连冠", "十连冠", "速算大师", "百题斩", "每日首胜", "极速60秒", "火神"]
+allAchievements = ["首杀", "三连冠", "五连冠", "十连冠", "速算大师", "百题斩", "每日首胜", "极速60秒", "火神", "键盘侠", "分享达人", "步步为营"]
 
 checkAchievements : Model -> List String
 checkAchievements model =
@@ -607,6 +643,9 @@ checkAchievements model =
             , ("每日首胜", model.gameMode == Daily && model.dailyCompleted)
             , ("极速60秒", model.timeAttackBest >= 5)
             , ("火神", model.streak >= 20)
+            , ("键盘侠", model.stepsWithKeypad >= 10)
+            , ("分享达人", model.sharedCount >= 3)
+            , ("步步为营", model.solved >= 1)  -- 在handleCorrect中根据步数判断
             ]
     in List.filterMap (\(name, cond) -> if cond && not (List.member name model.achievements) then Just name else Nothing) all
 
@@ -682,7 +721,18 @@ update msg model =
             in case parseAndValidate model.input cardValues of
                 Ok result ->
                     if abs(result - 24) < 0.0001 then
-                        handleCorrect { model | totalAttempts = newAttempts }
+                        if model.difficulty == Hard then
+                            case parseExpr (tokenize model.input) of
+                                Just (expr, rest) ->
+                                    if List.isEmpty rest && exprHasDiv expr then
+                                        handleCorrect { model | totalAttempts = newAttempts }
+                                    else
+                                        let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
+                                        in ( { model | message = "Hard 模式答案必须用到除法！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }, playSound "error" )
+                                Nothing ->
+                                    handleCorrect { model | totalAttempts = newAttempts }
+                        else
+                            handleCorrect { model | totalAttempts = newAttempts }
                     else
                         let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                             errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
@@ -856,12 +906,33 @@ update msg model =
                 live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
             in ( { model | input = newInput, liveResult = live }, Cmd.none )
 
+        KeypadInput s ->
+            let newInput = model.input ++ s
+                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+            in ( { model | input = newInput, liveResult = live }, playSound "click" )
+
+        ToggleKeypad ->
+            ( { model | keypadEnabled = not model.keypadEnabled }, Cmd.none )
+
+        ShareProblem ->
+            let shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/"
+                newShared = model.sharedCount + 1
+            in ( { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }, copyToClipboard shareText )
+
         NoOp -> (model, Cmd.none )
 
 
 handleCorrect : Model -> (Model, Cmd Msg)
 handleCorrect model =
     let newFastest = if model.timer > 0 && (model.fastestSolve == 0 || model.timer < model.fastestSolve) then model.timer else model.fastestSolve
+        stepCount =
+            case parseExpr (tokenize model.input) of
+                Just (expr, rest) ->
+                    if List.isEmpty rest then countOps expr else 0
+                Nothing -> 0
+        stepMsg = if stepCount > 0 then "（" ++ String.fromInt stepCount ++ "步运算）" else ""
+        newStepsWithKeypad = if model.keypadEnabled then model.stepsWithKeypad + 1 else model.stepsWithKeypad
+        bubuAchievement = if stepCount == 3 && not (List.member "步步为营" model.achievements) then ["步步为营"] else []
     in
     case model.gameMode of
         TimeAttack ->
@@ -870,8 +941,10 @@ handleCorrect model =
                 newStreak = model.streak + 1
                 newBestStreak = max newStreak model.bestStreak
                 newHistory = addToHistory model.input model.history
+                newAch = checkAchievements { model | streak = newStreak, solved = model.solved + 1, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
+                hasNewAch = not (List.isEmpty newAch)
                 newModel = { model
-                    | message = "+" ++ String.fromInt newScore ++ "分！+10秒！"
+                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else "+" ++ String.fromInt newScore ++ "分！+10秒！" ++ stepMsg
                     , messageType = Success
                     , streak = newStreak
                     , solved = model.solved + 1
@@ -884,9 +957,14 @@ handleCorrect model =
                     , timeAttackScore = newScore
                     , pendingNewCards = True
                     , fastestSolve = newFastest
+                    , stepsWithKeypad = newStepsWithKeypad
+                    , achievements = model.achievements ++ newAch
+                    , newAchievements = newAch
+                    , achievementTimer = if hasNewAch then 5 else 0
                     }
                 sfx =
-                    if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5) ]
+                    if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
+                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5) ]
                     else [ playSound "success", spawnParticles 30 ]
             in
             ( newModel
@@ -899,11 +977,11 @@ handleCorrect model =
                 isFirstDaily = not model.dailyCompleted
                 newDailyCompleted = True
                 newDailyBestTime = if model.dailyBestTime == 0 || model.timer < model.dailyBestTime then model.timer else model.dailyBestTime
-                newAch = checkAchievements { model | streak = newStreak, solved = newSolved, dailyCompleted = True }
+                newAch = checkAchievements { model | streak = newStreak, solved = newSolved, dailyCompleted = True, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
                 hasNewAch = not (List.isEmpty newAch)
                 newHistory = addToHistory model.input model.history
                 newModel = { model
-                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24" else if isFirstDaily then "今日挑战完成！" ++ model.input ++ " = 24" else "正确！" ++ model.input ++ " = 24"
+                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else if isFirstDaily then "今日挑战完成！" ++ model.input ++ " = 24 " ++ stepMsg else "正确！" ++ model.input ++ " = 24 " ++ stepMsg
                     , messageType = Success
                     , streak = newStreak
                     , solved = newSolved
@@ -919,6 +997,7 @@ handleCorrect model =
                     , dailyBestTime = newDailyBestTime
                     , pendingNewCards = True
                     , fastestSolve = newFastest
+                    , stepsWithKeypad = newStepsWithKeypad
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -932,11 +1011,11 @@ handleCorrect model =
             let newStreak = model.streak + 1
                 newBestStreak = max newStreak model.bestStreak
                 newSolved = model.solved + 1
-                newAch = checkAchievements { model | streak = newStreak, solved = newSolved }
+                newAch = checkAchievements { model | streak = newStreak, solved = newSolved, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
                 hasNewAch = not (List.isEmpty newAch)
                 newHistory = addToHistory model.input model.history
                 newModel = { model
-                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24" else "正确！" ++ model.input ++ " = 24"
+                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else "正确！" ++ model.input ++ " = 24 " ++ stepMsg
                     , messageType = Success
                     , streak = newStreak
                     , solved = newSolved
@@ -950,6 +1029,7 @@ handleCorrect model =
                     , history = newHistory
                     , pendingNewCards = True
                     , fastestSolve = newFastest
+                    , stepsWithKeypad = newStepsWithKeypad
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -1203,6 +1283,23 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .footer { color: #555; }
 .container.light .footer { color: #999; }
 
+.keypad { display: flex; flex-direction: column; gap: 8px; align-items: center; margin: 12px 0; }
+.keypad-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.keypad-btn { min-width: 48px; height: 44px; border-radius: 10px; border: 1px solid; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: monospace; }
+.container.dark .keypad-btn { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.12); }
+.container.light .keypad-btn { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }
+.container.dark .keypad-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.container.light .keypad-btn:hover { background: rgba(0,0,0,0.08); transform: translateY(-2px); }
+.keypad-btn:active { transform: scale(0.92); }
+.keypad-num { min-width: 52px; font-size: 1.2em; }
+.keypad-op { min-width: 40px; }
+.keypad-del { color: #e94560 !important; }
+.keypad-clear { color: #ffd93d !important; }
+.keypad-submit { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; }
+.keypad-toggle { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 0.7em; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }
+.container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }
+.container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }
+
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
     .header { position: relative; }
@@ -1269,6 +1366,28 @@ decodeKey { key, ctrlKey } =
     else if key == "Escape" then UpdateInput ""
     else if key == "Backspace" then BackspaceInput
     else NoOp
+
+viewKeypad : Model -> Html Msg
+viewKeypad model =
+    let cardValues = model.cards |> List.map (\c -> c.value) |> Set.fromList |> Set.toList |> List.sort
+        nums = List.map String.fromInt cardValues
+        ops = ["+", "-", "*", "/", "(", ")"]
+    in
+    div [ class "keypad" ]
+        [ button [ class "keypad-toggle", onClick ToggleKeypad ] [ text (if model.keypadEnabled then "隐藏键盘" else "显示键盘") ]
+        , if model.keypadEnabled then
+            div []
+                [ div [ class "keypad-row" ] (List.map (\n -> button [ class "keypad-btn keypad-num", onClick (KeypadInput n) ] [ text n ]) nums)
+                , div [ class "keypad-row" ] (List.map (\o -> button [ class "keypad-btn keypad-op", onClick (KeypadInput o) ] [ text o ]) ops)
+                , div [ class "keypad-row" ]
+                    [ button [ class "keypad-btn keypad-del", onClick BackspaceInput ] [ text "⌫" ]
+                    , button [ class "keypad-btn keypad-clear", onClick (UpdateInput "") ] [ text "C" ]
+                    , button [ class "keypad-btn keypad-submit", onClick SubmitAnswer ] [ text "✓" ]
+                    ]
+                ]
+          else
+            text ""
+        ]
 
 viewTimeAttackBar : Int -> Html Msg
 viewTimeAttackBar timeLeft =
@@ -1394,11 +1513,13 @@ view model =
             , button [ class "btn btn-success", onClick ShowHint ] [ text "提示" ]
             , button [ class "btn btn-secondary", onClick ShowAllAnswers ] [ text "全部" ]
             , button [ class "btn btn-secondary", onClick Skip ] [ text "跳过" ]
+            , button [ class "btn btn-secondary", onClick ShareProblem ] [ text "分享" ]
             , if isTimeAttack && model.timeLeft <= 0 then
                 button [ class "btn btn-primary", onClick StartTimeAttack ] [ text "再来一局" ]
               else
                 button [ class "btn btn-secondary", onClick NewGame ] [ text "新局" ]
             ]
+        , if not isTimeAttack then viewKeypad model else text ""
         , if not (List.isEmpty model.history) then
             div [ class "history-panel" ]
                 [ div [ class "history-header" ]
