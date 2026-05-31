@@ -34,6 +34,7 @@ type alias Model =
     , bestStreak : Int
     , totalGames : Int
     , timer : Int
+    , showAllAnswers : Bool
     }
 
 type Msg
@@ -41,6 +42,7 @@ type Msg
     | UpdateInput String
     | SubmitAnswer
     | ShowHint
+    | ShowAllAnswers
     | NewGame
     | Skip
     | Tick Time.Posix
@@ -237,12 +239,44 @@ combinePair vals (i, j) =
 unique : List String -> List String
 unique list = List.foldl (\x acc -> if List.member x acc then acc else acc ++ [x]) [] list
 
+-- Expression simplification: remove unnecessary parentheses
+exprToStringSimplified : Expr -> String
+exprToStringSimplified e = exprToStr 1 False e
+
+exprToStr : Int -> Bool -> Expr -> String
+exprToStr parentPrec isRight e =
+    case e of
+        Num n -> fmt n
+        AddE l r ->
+            let s = exprToStr 1 False l ++ "+" ++ exprToStr 1 False r
+            in if needsParens False parentPrec 1 then "(" ++ s ++ ")" else s
+        SubE l r ->
+            let s = exprToStr 1 False l ++ "-" ++ exprToStr 1 True r
+            in if needsParens False parentPrec 1 then "(" ++ s ++ ")" else s
+        MulE l r ->
+            let s = exprToStr 2 False l ++ "*" ++ exprToStr 2 False r
+            in if needsParens False parentPrec 2 then "(" ++ s ++ ")" else s
+        DivE l r ->
+            let s = exprToStr 2 False l ++ "/" ++ exprToStr 2 True r
+            in if needsParens False parentPrec 2 then "(" ++ s ++ ")" else s
+
+needsParens : Bool -> Int -> Int -> Bool
+needsParens isRight parent child =
+    child < parent || (isRight && child == parent)
+
+simplifySolution : String -> String
+simplifySolution s =
+    case parseExpr (tokenize s) of
+        Just (expr, rest) ->
+            if List.isEmpty rest then exprToStringSimplified expr else s
+        Nothing -> s
+
 solve24 : List Float -> List String
 solve24 nums =
     let initVals = List.map (\n -> {expr = fmt n, value = n}) nums
         allExprs = compute initVals
         solutions = List.filter (\e -> abs(e.value - 24) < 0.00001) allExprs
-    in List.map .expr solutions |> unique |> List.sort
+    in List.map (\e -> simplifySolution e.expr) solutions |> unique |> List.sort
 
 
 -- ============ RANDOM CARDS ============
@@ -287,6 +321,7 @@ init _ =
       , bestStreak = 0
       , totalGames = 0
       , timer = 0
+      , showAllAnswers = False
       }
     , generateCards
     )
@@ -298,19 +333,22 @@ update msg model =
         NewCards cards ->
             let solutions = solve24 (List.map (\c -> toFloat c.value) cards)
             in
-            ( { model
-                | cards = cards
-                , allSolutions = solutions
-                , message = if model.totalGames == 0 then "请用下面4张牌算出24点！" else "新的一组牌！"
-                , messageType = Info
-                , input = ""
-                , showHint = False
-                , hintText = ""
-                , totalGames = model.totalGames + 1
-                , timer = 0
-              }
-            , Cmd.none
-            )
+            if List.isEmpty solutions then
+                ( model, generateCards )
+            else
+                ( { model
+                    | cards = cards
+                    , allSolutions = solutions
+                    , message = if model.totalGames == 0 then "请用下面4张牌算出24点！" else "新的一组牌！"
+                    , messageType = Info
+                    , input = ""
+                    , showHint = False
+                    , hintText = ""
+                    , totalGames = model.totalGames + 1
+                    , timer = 0
+                  }
+                , Cmd.none
+                )
 
         UpdateInput s ->
             ( { model | input = s }, Cmd.none )
@@ -364,36 +402,30 @@ update msg model =
                     , Cmd.none
                     )
 
+        ShowAllAnswers ->
+            ( { model | showAllAnswers = True, message = "📋 显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, Cmd.none )
+
         NewGame ->
             ( { model
                 | streak = 0
                 , message = "新游戏开始！"
                 , messageType = Info
                 , timer = 0
+                , showAllAnswers = False
               }
             , generateCards
             )
 
         Skip ->
-            case model.allSolutions of
-                [] ->
-                    ( { model
-                        | skipped = model.skipped + 1
-                        , streak = 0
-                        , message = "确实无解！已跳过。"
-                        , messageType = Info
-                      }
-                    , generateCards
-                    )
-                _ ->
-                    ( { model
-                        | skipped = model.skipped + 1
-                        , streak = 0
-                        , message = "这道题有解，再想想！"
-                        , messageType = Error
-                      }
-                    , Cmd.none
-                    )
+            ( { model
+                | skipped = model.skipped + 1
+                , streak = 0
+                , message = "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
+                , messageType = Info
+                , showAllAnswers = True
+              }
+            , generateCards
+            )
 
         Tick _ -> ( { model | timer = model.timer + 1 }, Cmd.none )
 
@@ -446,6 +478,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .rules ul { padding-left: 20px; color: #bbb; line-height: 1.8; }
 .rules code { background: rgba(233,69,96,0.15); padding: 2px 6px; border-radius: 4px; color: #e94560; }
 .buttons-row { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+.all-answers { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid rgba(255,255,255,0.1); }
+.all-answers-title { font-weight: bold; color: #e94560; margin-bottom: 12px; font-size: 1.1em; }
+.answers-list { display: flex; flex-direction: column; gap: 8px; }
+.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1.05em; color: #ddd; border-left: 3px solid #e94560; }
 .footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.85em; }
         """ ]
 
@@ -523,9 +559,17 @@ view model =
         , div [ class "buttons-row" ]
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "✓ 提交答案" ]
             , button [ class "btn btn-success", onClick ShowHint ] [ text "💡 提示" ]
+            , button [ class "btn btn-secondary", onClick ShowAllAnswers ] [ text "📋 显示全部" ]
             , button [ class "btn btn-secondary", onClick Skip ] [ text "⏭ 跳过" ]
             , button [ class "btn btn-secondary", onClick NewGame ] [ text "🔄 新游戏" ]
             ]
+        , if model.showAllAnswers && not (List.isEmpty model.allSolutions) then
+            div [ class "all-answers" ]
+                [ div [ class "all-answers-title" ] [ text ("全部解法 (" ++ String.fromInt (List.length model.allSolutions) ++ " 个)") ]
+                , div [ class "answers-list" ] (List.indexedMap (\i ans -> div [ class "answer-item" ] [ text (String.fromInt (i + 1) ++ ". " ++ ans ++ " = 24") ]) model.allSolutions)
+                ]
+          else
+            text ""
         , div [ class "rules" ]
             [ h3 [] [ text "游戏规则" ]
             , p [] [ text "从扑克牌中随机抽取4张牌（A=1, J=11, Q=12, K=13），用加减乘除算出24" ]
