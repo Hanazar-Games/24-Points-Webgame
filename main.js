@@ -5533,7 +5533,7 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	});
 var $author$project$Main$init = function (_v0) {
 	return _Utils_Tuple2(
-		{achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', history: _List_Nil, input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', history: _List_Nil, input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
@@ -5541,7 +5541,6 @@ var $author$project$Main$init = function (_v0) {
 					$author$project$Main$loadFromStorage(_Utils_Tuple0)
 				])));
 };
-var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$StorageLoaded = function (a) {
 	return {$: 'StorageLoaded', a: a};
 };
@@ -5948,15 +5947,6 @@ var $elm$time$Time$every = F2(
 		return $elm$time$Time$subscription(
 			A2($elm$time$Time$Every, interval, tagger));
 	});
-var $elm$core$List$isEmpty = function (xs) {
-	if (!xs.b) {
-		return true;
-	} else {
-		return false;
-	}
-};
-var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
-var $elm$core$Basics$not = _Basics_not;
 var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$receiveFromStorage = _Platform_incomingPort('receiveFromStorage', $elm$json$Json$Decode$string);
 var $author$project$Main$subscriptions = function (model) {
@@ -5964,28 +5954,116 @@ var $author$project$Main$subscriptions = function (model) {
 		_List_fromArray(
 			[
 				A2($elm$time$Time$every, 1000, $author$project$Main$Tick),
-				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded),
-				(!$elm$core$List$isEmpty(model.newAchievements)) ? A2(
-				$elm$time$Time$every,
-				4000,
-				function (_v0) {
-					return $author$project$Main$DismissAchievements;
-				}) : $elm$core$Platform$Sub$none
+				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded)
 			]));
 };
 var $author$project$Main$DelayedNewCards = {$: 'DelayedNewCards'};
 var $author$project$Main$Error = {$: 'Error'};
+var $author$project$Main$NoOp = {$: 'NoOp'};
 var $author$project$Main$Success = {$: 'Success'};
 var $elm$core$Basics$abs = function (n) {
 	return (n < 0) ? (-n) : n;
 };
+var $elm$core$List$any = F2(
+	function (isOkay, list) {
+		any:
+		while (true) {
+			if (!list.b) {
+				return false;
+			} else {
+				var x = list.a;
+				var xs = list.b;
+				if (isOkay(x)) {
+					return true;
+				} else {
+					var $temp$isOkay = isOkay,
+						$temp$list = xs;
+					isOkay = $temp$isOkay;
+					list = $temp$list;
+					continue any;
+				}
+			}
+		}
+	});
+var $elm$core$List$member = F2(
+	function (x, xs) {
+		return A2(
+			$elm$core$List$any,
+			function (a) {
+				return _Utils_eq(a, x);
+			},
+			xs);
+	});
+var $author$project$Main$addToHistory = F2(
+	function (input, hist) {
+		return $elm$core$String$isEmpty(input) ? hist : (A2($elm$core$List$member, input, hist) ? hist : A2($elm$core$List$cons, input, hist));
+	});
+var $elm$core$Task$onError = _Scheduler_onError;
+var $elm$core$Task$attempt = F2(
+	function (resultToMessage, task) {
+		return $elm$core$Task$command(
+			$elm$core$Task$Perform(
+				A2(
+					$elm$core$Task$onError,
+					A2(
+						$elm$core$Basics$composeL,
+						A2($elm$core$Basics$composeL, $elm$core$Task$succeed, resultToMessage),
+						$elm$core$Result$Err),
+					A2(
+						$elm$core$Task$andThen,
+						A2(
+							$elm$core$Basics$composeL,
+							A2($elm$core$Basics$composeL, $elm$core$Task$succeed, resultToMessage),
+							$elm$core$Result$Ok),
+						task))));
+	});
+var $elm$core$List$maybeCons = F3(
+	function (f, mx, xs) {
+		var _v0 = f(mx);
+		if (_v0.$ === 'Just') {
+			var x = _v0.a;
+			return A2($elm$core$List$cons, x, xs);
+		} else {
+			return xs;
+		}
+	});
+var $elm$core$List$filterMap = F2(
+	function (f, xs) {
+		return A3(
+			$elm$core$List$foldr,
+			$elm$core$List$maybeCons(f),
+			_List_Nil,
+			xs);
+	});
+var $elm$core$Basics$ge = _Utils_ge;
+var $elm$core$Basics$not = _Basics_not;
+var $author$project$Main$checkAchievements = function (model) {
+	var all = _List_fromArray(
+		[
+			_Utils_Tuple2('首杀', model.solved >= 1),
+			_Utils_Tuple2('三连冠', model.streak >= 3),
+			_Utils_Tuple2('五连冠', model.streak >= 5),
+			_Utils_Tuple2('十连冠', model.streak >= 10),
+			_Utils_Tuple2('速算大师', (model.timer <= 10) && (model.solved > 0)),
+			_Utils_Tuple2('百题斩', model.solved >= 100)
+		]);
+	return A2(
+		$elm$core$List$filterMap,
+		function (_v0) {
+			var name = _v0.a;
+			var cond = _v0.b;
+			return (cond && (!A2($elm$core$List$member, name, model.achievements))) ? $elm$core$Maybe$Just(name) : $elm$core$Maybe$Nothing;
+		},
+		all);
+};
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$copyToClipboard = _Platform_outgoingPort('copyToClipboard', $elm$json$Json$Encode$string);
+var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
-var $elm$json$Json$Decode$map5 = _Json_map5;
+var $elm$json$Json$Decode$map7 = _Json_map7;
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
@@ -5999,15 +6077,17 @@ var $author$project$Main$decodeStats = F2(
 	function (json, model) {
 		var _v0 = A2(
 			$elm$json$Json$Decode$decodeString,
-			A6(
-				$elm$json$Json$Decode$map5,
-				F5(
-					function (bs, tsD, tsk, tt, ach) {
+			A8(
+				$elm$json$Json$Decode$map7,
+				F7(
+					function (bs, tsD, tsk, tt, ach, sfx, hist) {
 						return _Utils_update(
 							model,
 							{
 								achievements: _Utils_ap(model.achievements, ach),
 								bestStreak: A2($elm$core$Basics$max, model.bestStreak, bs),
+								history: _Utils_ap(model.history, hist),
+								sfxEnabled: sfx,
 								skipped: model.skipped + tsk,
 								solved: model.solved + tsD,
 								totalTime: model.totalTime + tt
@@ -6040,6 +6120,19 @@ var $author$project$Main$decodeStats = F2(
 						A2(
 							$elm$json$Json$Decode$field,
 							'achievements',
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(true),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'sfxEnabled', $elm$json$Json$Decode$bool))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(_List_Nil),
+					$elm$json$Json$Decode$maybe(
+						A2(
+							$elm$json$Json$Decode$field,
+							'history',
 							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))),
 			json);
 		if (_v0.$ === 'Ok') {
@@ -6056,6 +6149,14 @@ var $author$project$Main$fmt = function (n) {
 		n,
 		$elm$core$Basics$round(n)) ? $elm$core$String$fromInt(
 		$elm$core$Basics$round(n)) : $elm$core$String$fromFloat(n);
+};
+var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
+var $elm$core$List$isEmpty = function (xs) {
+	if (!xs.b) {
+		return true;
+	} else {
+		return false;
+	}
 };
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$core$Maybe$andThen = F2(
@@ -6373,10 +6474,16 @@ var $author$project$Main$tokenizeHelp = F2(
 			} else {
 				var c = chars.a;
 				var rest = chars.b;
-				if ($elm$core$Char$isDigit(c)) {
+				if ($elm$core$Char$isDigit(c) || _Utils_eq(
+					c,
+					_Utils_chr('.'))) {
 					var _v1 = A2(
 						$author$project$Main$spanList,
-						$elm$core$Char$isDigit,
+						function (ch) {
+							return $elm$core$Char$isDigit(ch) || _Utils_eq(
+								ch,
+								_Utils_chr('.'));
+						},
 						A2($elm$core$List$cons, c, rest));
 					var digits = _v1.a;
 					var remaining = _v1.b;
@@ -6439,6 +6546,7 @@ var $author$project$Main$parseAndValidate = F2(
 		}
 	});
 var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
+var $elm$json$Json$Encode$bool = _Json_wrap;
 var $elm$json$Json$Encode$int = _Json_wrap;
 var $elm$json$Json$Encode$list = F2(
 	function (func, entries) {
@@ -6483,7 +6591,13 @@ var $author$project$Main$encodeStats = function (model) {
 					$elm$json$Json$Encode$int(model.totalTime)),
 					_Utils_Tuple2(
 					'achievements',
-					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements))
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
+					_Utils_Tuple2(
+					'sfxEnabled',
+					$elm$json$Json$Encode$bool(model.sfxEnabled)),
+					_Utils_Tuple2(
+					'history',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.history))
 				])));
 };
 var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
@@ -6491,7 +6605,6 @@ var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
 		$author$project$Main$encodeStats(model));
 };
-var $elm$json$Json$Encode$bool = _Json_wrap;
 var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
 var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$Add = {$: 'Add'};
@@ -6801,36 +6914,6 @@ var $author$project$Main$simplifySolution = function (s) {
 		return s;
 	}
 };
-var $elm$core$List$any = F2(
-	function (isOkay, list) {
-		any:
-		while (true) {
-			if (!list.b) {
-				return false;
-			} else {
-				var x = list.a;
-				var xs = list.b;
-				if (isOkay(x)) {
-					return true;
-				} else {
-					var $temp$isOkay = isOkay,
-						$temp$list = xs;
-					isOkay = $temp$isOkay;
-					list = $temp$list;
-					continue any;
-				}
-			}
-		}
-	});
-var $elm$core$List$member = F2(
-	function (x, xs) {
-		return A2(
-			$elm$core$List$any,
-			function (a) {
-				return _Utils_eq(a, x);
-			},
-			xs);
-	});
 var $author$project$Main$unique = function (list) {
 	return A3(
 		$elm$core$List$foldl,
@@ -6870,6 +6953,7 @@ var $author$project$Main$solve24 = function (nums) {
 				},
 				solutions)));
 };
+var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		switch (msg.$) {
@@ -6892,11 +6976,17 @@ var $author$project$Main$update = F2(
 							input: '',
 							message: (!model.totalGames) ? '请用下面4张牌算出24点！' : '新的一组牌！',
 							messageType: $author$project$Main$Info,
+							pendingNewCards: false,
 							showHint: false,
 							timer: 0,
 							totalGames: model.totalGames + 1
 						}),
-					$elm$core$Platform$Cmd$none);
+					A2(
+						$elm$core$Task$attempt,
+						function (_v1) {
+							return $author$project$Main$NoOp;
+						},
+						$elm$browser$Browser$Dom$focus('expr-input')));
 			case 'UpdateInput':
 				var s = msg.a;
 				return _Utils_Tuple2(
@@ -6911,44 +7001,90 @@ var $author$project$Main$update = F2(
 						return c.value;
 					},
 					model.cards);
-				var _v1 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
-				if (_v1.$ === 'Ok') {
-					var result = _v1.a;
+				var _v2 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
+				if (_v2.$ === 'Ok') {
+					var result = _v2.a;
 					if ($elm$core$Basics$abs(result - 24) < 0.0001) {
 						var newStreak = model.streak + 1;
+						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 						var newBest = A2($elm$core$Basics$max, newStreak, model.bestStreak);
+						var newAch = $author$project$Main$checkAchievements(
+							_Utils_update(
+								model,
+								{solved: model.solved + 1, streak: newStreak}));
+						var hasNewAch = !$elm$core$List$isEmpty(newAch);
 						var newModel = _Utils_update(
 							model,
-							{bestStreak: newBest, input: '', message: '🎉 正确！「' + (model.input + ' = 24」'), messageType: $author$project$Main$Success, showHint: false, solved: model.solved + 1, streak: newStreak});
+							{
+								achievementTimer: hasNewAch ? 5 : 0,
+								achievements: _Utils_ap(model.achievements, newAch),
+								bestStreak: newBest,
+								history: newHistory,
+								input: '',
+								message: hasNewAch ? ('🏆 解锁成就！「' + (model.input + ' = 24」')) : ('🎉 正确！「' + (model.input + ' = 24」')),
+								messageType: $author$project$Main$Success,
+								newAchievements: newAch,
+								pendingNewCards: true,
+								showHint: false,
+								solved: model.solved + 1,
+								streak: newStreak
+							});
+						var sfx = hasNewAch ? _List_fromArray(
+							[
+								$author$project$Main$playSound('achievement'),
+								$author$project$Main$spawnParticles(50)
+							]) : ((newStreak >= 2) ? _List_fromArray(
+							[
+								$author$project$Main$playSound('success'),
+								$author$project$Main$playSound(
+								'streak:' + $elm$core$String$fromInt(newStreak)),
+								$author$project$Main$spawnParticles(40)
+							]) : _List_fromArray(
+							[
+								$author$project$Main$playSound('success'),
+								$author$project$Main$spawnParticles(30)
+							]));
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
-								_List_fromArray(
-									[
-										$author$project$Main$generateCards,
-										$author$project$Main$saveCmd(newModel)
-									])));
+								_Utils_ap(
+									_List_fromArray(
+										[
+											A2(
+											$elm$core$Task$perform,
+											function (_v3) {
+												return $author$project$Main$DelayedNewCards;
+											},
+											$elm$core$Process$sleep(800)),
+											$author$project$Main$saveCmd(newModel),
+											A2(
+											$elm$core$Task$attempt,
+											function (_v4) {
+												return $author$project$Main$NoOp;
+											},
+											$elm$browser$Browser$Dom$focus('expr-input'))
+										]),
+									sfx)));
 					} else {
+						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 						var errModel = _Utils_update(
 							model,
 							{
-								history: A2($elm$core$List$cons, model.input, model.history),
+								history: newHistory,
 								message: '❌ 结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
 								messageType: $author$project$Main$Error,
 								streak: 0
 							});
-						return _Utils_Tuple2(errModel, $elm$core$Platform$Cmd$none);
+						return _Utils_Tuple2(
+							errModel,
+							$author$project$Main$playSound('error'));
 					}
 				} else {
-					var errMsg = _v1.a;
+					var errMsg = _v2.a;
+					var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 					var newModel = _Utils_update(
 						model,
-						{
-							history: A2($elm$core$List$cons, model.input, model.history),
-							message: '❌ ' + errMsg,
-							messageType: $author$project$Main$Error,
-							streak: 0
-						});
+						{history: newHistory, message: '❌ ' + errMsg, messageType: $author$project$Main$Error, streak: 0});
 					return _Utils_Tuple2(
 						newModel,
 						$elm$core$Platform$Cmd$batch(
@@ -6959,15 +7095,15 @@ var $author$project$Main$update = F2(
 								])));
 				}
 			case 'ShowHint':
-				var _v2 = model.allSolutions;
-				if (!_v2.b) {
+				var _v5 = model.allSolutions;
+				if (!_v5.b) {
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{message: '💡 这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
 						$author$project$Main$playSound('click'));
 				} else {
-					var first = _v2.a;
+					var first = _v5.a;
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
@@ -7005,6 +7141,7 @@ var $author$project$Main$update = F2(
 							'',
 							$elm$core$List$head(model.allSolutions)),
 						messageType: $author$project$Main$Info,
+						pendingNewCards: true,
 						showAllAnswers: true,
 						skipped: model.skipped + 1,
 						streak: 0
@@ -7014,9 +7151,9 @@ var $author$project$Main$update = F2(
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
 							[
-								A2(
+								model.pendingNewCards ? $elm$core$Platform$Cmd$none : A2(
 								$elm$core$Task$perform,
-								function (_v3) {
+								function (_v6) {
 									return $author$project$Main$DelayedNewCards;
 								},
 								$elm$core$Process$sleep(1500)),
@@ -7024,17 +7161,25 @@ var $author$project$Main$update = F2(
 								$author$project$Main$playSound('click')
 							])));
 			case 'Tick':
+				var newTotalTime = model.totalTime + 1;
+				var newTimer = model.timer + 1;
+				var newAchTimer = A2($elm$core$Basics$max, 0, model.achievementTimer - 1);
+				var clearedAch = ((!newAchTimer) && (model.achievementTimer > 0)) ? _List_Nil : model.newAchievements;
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{timer: model.timer + 1, totalTime: model.totalTime + 1}),
+						{achievementTimer: newAchTimer, newAchievements: clearedAch, timer: newTimer, totalTime: newTotalTime}),
 					$elm$core$Platform$Cmd$none);
 			case 'StorageLoaded':
 				var json = msg.a;
 				var newModel = A2($author$project$Main$decodeStats, json, model);
 				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
 			case 'DelayedNewCards':
-				return _Utils_Tuple2(model, $author$project$Main$generateCards);
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{pendingNewCards: false}),
+					$author$project$Main$generateCards);
 			case 'DismissAchievements':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -7069,6 +7214,7 @@ var $author$project$Main$ClearHistory = {$: 'ClearHistory'};
 var $author$project$Main$CopyAnswer = function (a) {
 	return {$: 'CopyAnswer', a: a};
 };
+var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
 var $author$project$Main$ShowHint = {$: 'ShowHint'};
@@ -7103,9 +7249,8 @@ var $author$project$Main$css = A3(
 	_List_Nil,
 	_List_fromArray(
 		[
-			$elm$html$Html$text('\n@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap\');\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
+			$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
 		]));
-var $author$project$Main$NoOp = {$: 'NoOp'};
 var $author$project$Main$decodeKey = function (_v0) {
 	var key = _v0.key;
 	var ctrlKey = _v0.ctrlKey;
@@ -7118,13 +7263,11 @@ var $author$project$Main$formatTime = function (seconds) {
 	var m = (seconds / 60) | 0;
 	return $elm$core$String$fromInt(m) + (':' + (((s < 10) ? '0' : '') + $elm$core$String$fromInt(s)));
 };
-var $elm$core$Basics$ge = _Utils_ge;
 var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$html$Html$h3 = _VirtualDom_node('h3');
 var $elm$html$Html$h4 = _VirtualDom_node('h4');
 var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$input = _VirtualDom_node('input');
-var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $author$project$Main$keyDecoder = A3(
 	$elm$json$Json$Decode$map2,
 	F2(

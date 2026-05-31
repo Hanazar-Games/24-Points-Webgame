@@ -1,7 +1,7 @@
 {
-  "name": "24点挑战",
+  "name": "24点挑战 v0.3.1",
   "short_name": "24点",
-  "description": "扑克牌24点益智游戏",
+  "description": "扑克牌24点益智游戏 v0.3.1",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#1a1a2e",
