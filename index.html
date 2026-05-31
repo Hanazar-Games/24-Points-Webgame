@@ -6901,6 +6901,7 @@ var $author$project$Main$formatTime = function (seconds) {
 };
 var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$html$Html$h3 = _VirtualDom_node('h3');
+var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$input = _VirtualDom_node('input');
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$html$Html$li = _VirtualDom_node('li');
@@ -7252,6 +7253,7 @@ var $author$project$Main$view = function (model) {
 							[
 								$elm$html$Html$Attributes$class('expr-input'),
 								$elm$html$Html$Attributes$type_('text'),
+								$elm$html$Html$Attributes$id('expr-input'),
 								$elm$html$Html$Attributes$value(model.input),
 								$elm$html$Html$Attributes$placeholder('输入算式，如 (3+3)*8/2'),
 								$elm$html$Html$Events$onInput($author$project$Main$UpdateInput),

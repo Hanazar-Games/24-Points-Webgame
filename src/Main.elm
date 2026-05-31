@@ -1,11 +1,13 @@
 module Main exposing (main)
 
 import Browser
+import Browser.Dom as Dom
 import Html exposing (Html, div, text, button, input, h1, h2, h3, p, span, br, node, ul, li, code)
-import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href)
+import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
 import Random
+import Task
 import Time
 
 
@@ -559,6 +561,7 @@ view model =
             [ input
                 [ class "expr-input"
                 , type_ "text"
+                , id "expr-input"
                 , value model.input
                 , placeholder "输入算式，如 (3+3)*8/2"
                 , onInput UpdateInput
