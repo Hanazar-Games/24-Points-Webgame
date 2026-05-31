@@ -80,271 +80,6 @@ function A9(fun, a, b, c, d, e, f, g, h, i) {
 console.warn('Compiled in DEV mode. Follow the advice at https://elm-lang.org/0.19.1/optimize for better performance and smaller assets.');
 
 
-// EQUALITY
-
-function _Utils_eq(x, y)
-{
-	for (
-		var pair, stack = [], isEqual = _Utils_eqHelp(x, y, 0, stack);
-		isEqual && (pair = stack.pop());
-		isEqual = _Utils_eqHelp(pair.a, pair.b, 0, stack)
-		)
-	{}
-
-	return isEqual;
-}
-
-function _Utils_eqHelp(x, y, depth, stack)
-{
-	if (x === y)
-	{
-		return true;
-	}
-
-	if (typeof x !== 'object' || x === null || y === null)
-	{
-		typeof x === 'function' && _Debug_crash(5);
-		return false;
-	}
-
-	if (depth > 100)
-	{
-		stack.push(_Utils_Tuple2(x,y));
-		return true;
-	}
-
-	/**/
-	if (x.$ === 'Set_elm_builtin')
-	{
-		x = $elm$core$Set$toList(x);
-		y = $elm$core$Set$toList(y);
-	}
-	if (x.$ === 'RBNode_elm_builtin' || x.$ === 'RBEmpty_elm_builtin')
-	{
-		x = $elm$core$Dict$toList(x);
-		y = $elm$core$Dict$toList(y);
-	}
-	//*/
-
-	/**_UNUSED/
-	if (x.$ < 0)
-	{
-		x = $elm$core$Dict$toList(x);
-		y = $elm$core$Dict$toList(y);
-	}
-	//*/
-
-	for (var key in x)
-	{
-		if (!_Utils_eqHelp(x[key], y[key], depth + 1, stack))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-var _Utils_equal = F2(_Utils_eq);
-var _Utils_notEqual = F2(function(a, b) { return !_Utils_eq(a,b); });
-
-
-
-// COMPARISONS
-
-// Code in Generate/JavaScript.hs, Basics.js, and List.js depends on
-// the particular integer values assigned to LT, EQ, and GT.
-
-function _Utils_cmp(x, y, ord)
-{
-	if (typeof x !== 'object')
-	{
-		return x === y ? /*EQ*/ 0 : x < y ? /*LT*/ -1 : /*GT*/ 1;
-	}
-
-	/**/
-	if (x instanceof String)
-	{
-		var a = x.valueOf();
-		var b = y.valueOf();
-		return a === b ? 0 : a < b ? -1 : 1;
-	}
-	//*/
-
-	/**_UNUSED/
-	if (typeof x.$ === 'undefined')
-	//*/
-	/**/
-	if (x.$[0] === '#')
-	//*/
-	{
-		return (ord = _Utils_cmp(x.a, y.a))
-			? ord
-			: (ord = _Utils_cmp(x.b, y.b))
-				? ord
-				: _Utils_cmp(x.c, y.c);
-	}
-
-	// traverse conses until end of a list or a mismatch
-	for (; x.b && y.b && !(ord = _Utils_cmp(x.a, y.a)); x = x.b, y = y.b) {} // WHILE_CONSES
-	return ord || (x.b ? /*GT*/ 1 : y.b ? /*LT*/ -1 : /*EQ*/ 0);
-}
-
-var _Utils_lt = F2(function(a, b) { return _Utils_cmp(a, b) < 0; });
-var _Utils_le = F2(function(a, b) { return _Utils_cmp(a, b) < 1; });
-var _Utils_gt = F2(function(a, b) { return _Utils_cmp(a, b) > 0; });
-var _Utils_ge = F2(function(a, b) { return _Utils_cmp(a, b) >= 0; });
-
-var _Utils_compare = F2(function(x, y)
-{
-	var n = _Utils_cmp(x, y);
-	return n < 0 ? $elm$core$Basics$LT : n ? $elm$core$Basics$GT : $elm$core$Basics$EQ;
-});
-
-
-// COMMON VALUES
-
-var _Utils_Tuple0_UNUSED = 0;
-var _Utils_Tuple0 = { $: '#0' };
-
-function _Utils_Tuple2_UNUSED(a, b) { return { a: a, b: b }; }
-function _Utils_Tuple2(a, b) { return { $: '#2', a: a, b: b }; }
-
-function _Utils_Tuple3_UNUSED(a, b, c) { return { a: a, b: b, c: c }; }
-function _Utils_Tuple3(a, b, c) { return { $: '#3', a: a, b: b, c: c }; }
-
-function _Utils_chr_UNUSED(c) { return c; }
-function _Utils_chr(c) { return new String(c); }
-
-
-// RECORDS
-
-function _Utils_update(oldRecord, updatedFields)
-{
-	var newRecord = {};
-
-	for (var key in oldRecord)
-	{
-		newRecord[key] = oldRecord[key];
-	}
-
-	for (var key in updatedFields)
-	{
-		newRecord[key] = updatedFields[key];
-	}
-
-	return newRecord;
-}
-
-
-// APPEND
-
-var _Utils_append = F2(_Utils_ap);
-
-function _Utils_ap(xs, ys)
-{
-	// append Strings
-	if (typeof xs === 'string')
-	{
-		return xs + ys;
-	}
-
-	// append Lists
-	if (!xs.b)
-	{
-		return ys;
-	}
-	var root = _List_Cons(xs.a, ys);
-	xs = xs.b
-	for (var curr = root; xs.b; xs = xs.b) // WHILE_CONS
-	{
-		curr = curr.b = _List_Cons(xs.a, ys);
-	}
-	return root;
-}
-
-
-
-var _List_Nil_UNUSED = { $: 0 };
-var _List_Nil = { $: '[]' };
-
-function _List_Cons_UNUSED(hd, tl) { return { $: 1, a: hd, b: tl }; }
-function _List_Cons(hd, tl) { return { $: '::', a: hd, b: tl }; }
-
-
-var _List_cons = F2(_List_Cons);
-
-function _List_fromArray(arr)
-{
-	var out = _List_Nil;
-	for (var i = arr.length; i--; )
-	{
-		out = _List_Cons(arr[i], out);
-	}
-	return out;
-}
-
-function _List_toArray(xs)
-{
-	for (var out = []; xs.b; xs = xs.b) // WHILE_CONS
-	{
-		out.push(xs.a);
-	}
-	return out;
-}
-
-var _List_map2 = F3(function(f, xs, ys)
-{
-	for (var arr = []; xs.b && ys.b; xs = xs.b, ys = ys.b) // WHILE_CONSES
-	{
-		arr.push(A2(f, xs.a, ys.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map3 = F4(function(f, xs, ys, zs)
-{
-	for (var arr = []; xs.b && ys.b && zs.b; xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A3(f, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map4 = F5(function(f, ws, xs, ys, zs)
-{
-	for (var arr = []; ws.b && xs.b && ys.b && zs.b; ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A4(f, ws.a, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map5 = F6(function(f, vs, ws, xs, ys, zs)
-{
-	for (var arr = []; vs.b && ws.b && xs.b && ys.b && zs.b; vs = vs.b, ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A5(f, vs.a, ws.a, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_sortBy = F2(function(f, xs)
-{
-	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
-		return _Utils_cmp(f(a), f(b));
-	}));
-});
-
-var _List_sortWith = F2(function(f, xs)
-{
-	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
-		var ord = A2(f, a, b);
-		return ord === $elm$core$Basics$EQ ? 0 : ord === $elm$core$Basics$LT ? -1 : 1;
-	}));
-});
-
-
-
 var _JsArray_empty = [];
 
 function _JsArray_singleton(value)
@@ -790,6 +525,271 @@ function _Debug_regionToString(region)
 	}
 	return 'on lines ' + region.start.line + ' through ' + region.end.line;
 }
+
+
+
+// EQUALITY
+
+function _Utils_eq(x, y)
+{
+	for (
+		var pair, stack = [], isEqual = _Utils_eqHelp(x, y, 0, stack);
+		isEqual && (pair = stack.pop());
+		isEqual = _Utils_eqHelp(pair.a, pair.b, 0, stack)
+		)
+	{}
+
+	return isEqual;
+}
+
+function _Utils_eqHelp(x, y, depth, stack)
+{
+	if (x === y)
+	{
+		return true;
+	}
+
+	if (typeof x !== 'object' || x === null || y === null)
+	{
+		typeof x === 'function' && _Debug_crash(5);
+		return false;
+	}
+
+	if (depth > 100)
+	{
+		stack.push(_Utils_Tuple2(x,y));
+		return true;
+	}
+
+	/**/
+	if (x.$ === 'Set_elm_builtin')
+	{
+		x = $elm$core$Set$toList(x);
+		y = $elm$core$Set$toList(y);
+	}
+	if (x.$ === 'RBNode_elm_builtin' || x.$ === 'RBEmpty_elm_builtin')
+	{
+		x = $elm$core$Dict$toList(x);
+		y = $elm$core$Dict$toList(y);
+	}
+	//*/
+
+	/**_UNUSED/
+	if (x.$ < 0)
+	{
+		x = $elm$core$Dict$toList(x);
+		y = $elm$core$Dict$toList(y);
+	}
+	//*/
+
+	for (var key in x)
+	{
+		if (!_Utils_eqHelp(x[key], y[key], depth + 1, stack))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+var _Utils_equal = F2(_Utils_eq);
+var _Utils_notEqual = F2(function(a, b) { return !_Utils_eq(a,b); });
+
+
+
+// COMPARISONS
+
+// Code in Generate/JavaScript.hs, Basics.js, and List.js depends on
+// the particular integer values assigned to LT, EQ, and GT.
+
+function _Utils_cmp(x, y, ord)
+{
+	if (typeof x !== 'object')
+	{
+		return x === y ? /*EQ*/ 0 : x < y ? /*LT*/ -1 : /*GT*/ 1;
+	}
+
+	/**/
+	if (x instanceof String)
+	{
+		var a = x.valueOf();
+		var b = y.valueOf();
+		return a === b ? 0 : a < b ? -1 : 1;
+	}
+	//*/
+
+	/**_UNUSED/
+	if (typeof x.$ === 'undefined')
+	//*/
+	/**/
+	if (x.$[0] === '#')
+	//*/
+	{
+		return (ord = _Utils_cmp(x.a, y.a))
+			? ord
+			: (ord = _Utils_cmp(x.b, y.b))
+				? ord
+				: _Utils_cmp(x.c, y.c);
+	}
+
+	// traverse conses until end of a list or a mismatch
+	for (; x.b && y.b && !(ord = _Utils_cmp(x.a, y.a)); x = x.b, y = y.b) {} // WHILE_CONSES
+	return ord || (x.b ? /*GT*/ 1 : y.b ? /*LT*/ -1 : /*EQ*/ 0);
+}
+
+var _Utils_lt = F2(function(a, b) { return _Utils_cmp(a, b) < 0; });
+var _Utils_le = F2(function(a, b) { return _Utils_cmp(a, b) < 1; });
+var _Utils_gt = F2(function(a, b) { return _Utils_cmp(a, b) > 0; });
+var _Utils_ge = F2(function(a, b) { return _Utils_cmp(a, b) >= 0; });
+
+var _Utils_compare = F2(function(x, y)
+{
+	var n = _Utils_cmp(x, y);
+	return n < 0 ? $elm$core$Basics$LT : n ? $elm$core$Basics$GT : $elm$core$Basics$EQ;
+});
+
+
+// COMMON VALUES
+
+var _Utils_Tuple0_UNUSED = 0;
+var _Utils_Tuple0 = { $: '#0' };
+
+function _Utils_Tuple2_UNUSED(a, b) { return { a: a, b: b }; }
+function _Utils_Tuple2(a, b) { return { $: '#2', a: a, b: b }; }
+
+function _Utils_Tuple3_UNUSED(a, b, c) { return { a: a, b: b, c: c }; }
+function _Utils_Tuple3(a, b, c) { return { $: '#3', a: a, b: b, c: c }; }
+
+function _Utils_chr_UNUSED(c) { return c; }
+function _Utils_chr(c) { return new String(c); }
+
+
+// RECORDS
+
+function _Utils_update(oldRecord, updatedFields)
+{
+	var newRecord = {};
+
+	for (var key in oldRecord)
+	{
+		newRecord[key] = oldRecord[key];
+	}
+
+	for (var key in updatedFields)
+	{
+		newRecord[key] = updatedFields[key];
+	}
+
+	return newRecord;
+}
+
+
+// APPEND
+
+var _Utils_append = F2(_Utils_ap);
+
+function _Utils_ap(xs, ys)
+{
+	// append Strings
+	if (typeof xs === 'string')
+	{
+		return xs + ys;
+	}
+
+	// append Lists
+	if (!xs.b)
+	{
+		return ys;
+	}
+	var root = _List_Cons(xs.a, ys);
+	xs = xs.b
+	for (var curr = root; xs.b; xs = xs.b) // WHILE_CONS
+	{
+		curr = curr.b = _List_Cons(xs.a, ys);
+	}
+	return root;
+}
+
+
+
+var _List_Nil_UNUSED = { $: 0 };
+var _List_Nil = { $: '[]' };
+
+function _List_Cons_UNUSED(hd, tl) { return { $: 1, a: hd, b: tl }; }
+function _List_Cons(hd, tl) { return { $: '::', a: hd, b: tl }; }
+
+
+var _List_cons = F2(_List_Cons);
+
+function _List_fromArray(arr)
+{
+	var out = _List_Nil;
+	for (var i = arr.length; i--; )
+	{
+		out = _List_Cons(arr[i], out);
+	}
+	return out;
+}
+
+function _List_toArray(xs)
+{
+	for (var out = []; xs.b; xs = xs.b) // WHILE_CONS
+	{
+		out.push(xs.a);
+	}
+	return out;
+}
+
+var _List_map2 = F3(function(f, xs, ys)
+{
+	for (var arr = []; xs.b && ys.b; xs = xs.b, ys = ys.b) // WHILE_CONSES
+	{
+		arr.push(A2(f, xs.a, ys.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map3 = F4(function(f, xs, ys, zs)
+{
+	for (var arr = []; xs.b && ys.b && zs.b; xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A3(f, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map4 = F5(function(f, ws, xs, ys, zs)
+{
+	for (var arr = []; ws.b && xs.b && ys.b && zs.b; ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A4(f, ws.a, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map5 = F6(function(f, vs, ws, xs, ys, zs)
+{
+	for (var arr = []; vs.b && ws.b && xs.b && ys.b && zs.b; vs = vs.b, ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A5(f, vs.a, ws.a, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_sortBy = F2(function(f, xs)
+{
+	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
+		return _Utils_cmp(f(a), f(b));
+	}));
+});
+
+var _List_sortWith = F2(function(f, xs)
+{
+	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
+		var ord = A2(f, a, b);
+		return ord === $elm$core$Basics$EQ ? 0 : ord === $elm$core$Basics$LT ? -1 : 1;
+	}));
+});
 
 
 
@@ -4453,10 +4453,31 @@ function _Time_getZoneName()
 		callback(_Scheduler_succeed(name));
 	});
 }
-var $elm$core$Basics$EQ = {$: 'EQ'};
-var $elm$core$Basics$GT = {$: 'GT'};
-var $elm$core$Basics$LT = {$: 'LT'};
 var $elm$core$List$cons = _List_cons;
+var $elm$core$Elm$JsArray$foldr = _JsArray_foldr;
+var $elm$core$Array$foldr = F3(
+	function (func, baseCase, _v0) {
+		var tree = _v0.c;
+		var tail = _v0.d;
+		var helper = F2(
+			function (node, acc) {
+				if (node.$ === 'SubTree') {
+					var subTree = node.a;
+					return A3($elm$core$Elm$JsArray$foldr, helper, acc, subTree);
+				} else {
+					var values = node.a;
+					return A3($elm$core$Elm$JsArray$foldr, func, acc, values);
+				}
+			});
+		return A3(
+			$elm$core$Elm$JsArray$foldr,
+			helper,
+			A3($elm$core$Elm$JsArray$foldr, func, baseCase, tail),
+			tree);
+	});
+var $elm$core$Array$toList = function (array) {
+	return A3($elm$core$Array$foldr, $elm$core$List$cons, _List_Nil, array);
+};
 var $elm$core$Dict$foldr = F3(
 	function (func, acc, t) {
 		foldr:
@@ -4509,30 +4530,9 @@ var $elm$core$Set$toList = function (_v0) {
 	var dict = _v0.a;
 	return $elm$core$Dict$keys(dict);
 };
-var $elm$core$Elm$JsArray$foldr = _JsArray_foldr;
-var $elm$core$Array$foldr = F3(
-	function (func, baseCase, _v0) {
-		var tree = _v0.c;
-		var tail = _v0.d;
-		var helper = F2(
-			function (node, acc) {
-				if (node.$ === 'SubTree') {
-					var subTree = node.a;
-					return A3($elm$core$Elm$JsArray$foldr, helper, acc, subTree);
-				} else {
-					var values = node.a;
-					return A3($elm$core$Elm$JsArray$foldr, func, acc, values);
-				}
-			});
-		return A3(
-			$elm$core$Elm$JsArray$foldr,
-			helper,
-			A3($elm$core$Elm$JsArray$foldr, func, baseCase, tail),
-			tree);
-	});
-var $elm$core$Array$toList = function (array) {
-	return A3($elm$core$Array$foldr, $elm$core$List$cons, _List_Nil, array);
-};
+var $elm$core$Basics$EQ = {$: 'EQ'};
+var $elm$core$Basics$GT = {$: 'GT'};
+var $elm$core$Basics$LT = {$: 'LT'};
 var $elm$core$Result$Err = function (a) {
 	return {$: 'Err', a: a};
 };
@@ -4928,6 +4928,7 @@ var $elm$core$Result$isOk = function (result) {
 		return false;
 	}
 };
+var $elm$json$Json$Decode$andThen = _Json_andThen;
 var $elm$json$Json$Decode$map = _Json_map1;
 var $elm$json$Json$Decode$map2 = _Json_map2;
 var $elm$json$Json$Decode$succeed = _Json_succeed;
@@ -5242,6 +5243,9 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$element = _Browser_element;
+var $elm$json$Json$Decode$field = _Json_decodeField;
+var $author$project$Main$Classic = {$: 'Classic'};
+var $author$project$Main$Dark = {$: 'Dark'};
 var $author$project$Main$Info = {$: 'Info'};
 var $author$project$Main$Normal = {$: 'Normal'};
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
@@ -5549,9 +5553,9 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	function ($) {
 		return $elm$json$Json$Encode$null;
 	});
-var $author$project$Main$init = function (_v0) {
+var $author$project$Main$init = function (flags) {
 	return _Utils_Tuple2(
-		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, difficulty: $author$project$Main$Normal, hintText: '', history: _List_Nil, input: '', liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, dailyBestTime: 0, dailyCompleted: false, dailyDate: flags.today, difficulty: $author$project$Main$Normal, gameMode: $author$project$Main$Classic, hintLevel: 0, hintText: '', history: _List_Nil, input: '', liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, theme: $author$project$Main$Dark, timeAttackBest: 0, timeAttackScore: 0, timeLeft: 0, timer: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
@@ -5559,6 +5563,7 @@ var $author$project$Main$init = function (_v0) {
 					$author$project$Main$loadFromStorage(_Utils_Tuple0)
 				])));
 };
+var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$StorageLoaded = function (a) {
 	return {$: 'StorageLoaded', a: a};
 };
@@ -5965,7 +5970,6 @@ var $elm$time$Time$every = F2(
 		return $elm$time$Time$subscription(
 			A2($elm$time$Time$Every, interval, tagger));
 	});
-var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$receiveFromStorage = _Platform_incomingPort('receiveFromStorage', $elm$json$Json$Decode$string);
 var $author$project$Main$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
@@ -5975,10 +5979,11 @@ var $author$project$Main$subscriptions = function (model) {
 				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded)
 			]));
 };
+var $author$project$Main$Daily = {$: 'Daily'};
 var $author$project$Main$DelayedNewCards = {$: 'DelayedNewCards'};
 var $author$project$Main$Error = {$: 'Error'};
 var $author$project$Main$NoOp = {$: 'NoOp'};
-var $author$project$Main$Success = {$: 'Success'};
+var $author$project$Main$TimeAttack = {$: 'TimeAttack'};
 var $elm$core$Basics$abs = function (n) {
 	return (n < 0) ? (-n) : n;
 };
@@ -6035,45 +6040,6 @@ var $elm$core$Task$attempt = F2(
 							$elm$core$Result$Ok),
 						task))));
 	});
-var $elm$core$List$maybeCons = F3(
-	function (f, mx, xs) {
-		var _v0 = f(mx);
-		if (_v0.$ === 'Just') {
-			var x = _v0.a;
-			return A2($elm$core$List$cons, x, xs);
-		} else {
-			return xs;
-		}
-	});
-var $elm$core$List$filterMap = F2(
-	function (f, xs) {
-		return A3(
-			$elm$core$List$foldr,
-			$elm$core$List$maybeCons(f),
-			_List_Nil,
-			xs);
-	});
-var $elm$core$Basics$ge = _Utils_ge;
-var $elm$core$Basics$not = _Basics_not;
-var $author$project$Main$checkAchievements = function (model) {
-	var all = _List_fromArray(
-		[
-			_Utils_Tuple2('首杀', model.solved >= 1),
-			_Utils_Tuple2('三连冠', model.streak >= 3),
-			_Utils_Tuple2('五连冠', model.streak >= 5),
-			_Utils_Tuple2('十连冠', model.streak >= 10),
-			_Utils_Tuple2('速算大师', (model.timer <= 10) && (model.solved > 0)),
-			_Utils_Tuple2('百题斩', model.solved >= 100)
-		]);
-	return A2(
-		$elm$core$List$filterMap,
-		function (_v0) {
-			var name = _v0.a;
-			var cond = _v0.b;
-			return (cond && (!A2($elm$core$List$member, name, model.achievements))) ? $elm$core$Maybe$Just(name) : $elm$core$Maybe$Nothing;
-		},
-		all);
-};
 var $elm$core$Maybe$andThen = F2(
 	function (callback, maybeValue) {
 		if (maybeValue.$ === 'Just') {
@@ -6215,6 +6181,7 @@ var $author$project$Main$matchCards = F2(
 			$elm$core$List$sort(
 				A2($elm$core$List$map, round3, actual)));
 	});
+var $elm$core$Basics$not = _Basics_not;
 var $author$project$Main$AddE = F2(
 	function (a, b) {
 		return {$: 'AddE', a: a, b: b};
@@ -6465,7 +6432,7 @@ var $author$project$Main$computeLiveResult = F2(
 				} else {
 					var _v2 = $author$project$Main$evalExpr(expr);
 					if (_v2.$ === 'Nothing') {
-						return '⚠️ 计算错误';
+						return '计算错误';
 					} else {
 						var result = _v2.a;
 						var usedNums = $author$project$Main$extractNums(expr);
@@ -6478,12 +6445,16 @@ var $author$project$Main$computeLiveResult = F2(
 	});
 var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$copyToClipboard = _Platform_outgoingPort('copyToClipboard', $elm$json$Json$Encode$string);
+var $author$project$Main$DecodedBase = F8(
+	function (bestStreak, totalSolved, totalSkipped, totalTime, achievements, sfxEnabled, history, theme) {
+		return {achievements: achievements, bestStreak: bestStreak, history: history, sfxEnabled: sfxEnabled, theme: theme, totalSkipped: totalSkipped, totalSolved: totalSolved, totalTime: totalTime};
+	});
 var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
-var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
-var $elm$json$Json$Decode$map7 = _Json_map7;
+var $elm$json$Json$Decode$map4 = _Json_map4;
+var $elm$json$Json$Decode$map8 = _Json_map8;
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
@@ -6493,26 +6464,42 @@ var $elm$json$Json$Decode$maybe = function (decoder) {
 				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
 			]));
 };
+var $author$project$Main$Light = {$: 'Light'};
+var $author$project$Main$themeDecoder = A2(
+	$elm$json$Json$Decode$andThen,
+	function (s) {
+		if (s === 'light') {
+			return $elm$json$Json$Decode$succeed($author$project$Main$Light);
+		} else {
+			return $elm$json$Json$Decode$succeed($author$project$Main$Dark);
+		}
+	},
+	$elm$json$Json$Decode$string);
 var $author$project$Main$decodeStats = F2(
 	function (json, model) {
-		var _v0 = A2(
-			$elm$json$Json$Decode$decodeString,
-			A8(
-				$elm$json$Json$Decode$map7,
-				F7(
-					function (bs, tsD, tsk, tt, ach, sfx, hist) {
-						return _Utils_update(
-							model,
-							{
-								achievements: _Utils_ap(model.achievements, ach),
-								bestStreak: A2($elm$core$Basics$max, model.bestStreak, bs),
-								history: _Utils_ap(model.history, hist),
-								sfxEnabled: sfx,
-								skipped: model.skipped + tsk,
-								solved: model.solved + tsD,
-								totalTime: model.totalTime + tt
-							});
-					}),
+		var decoder = A5(
+			$elm$json$Json$Decode$map4,
+			F4(
+				function (base, tab, dcd, dbt) {
+					return _Utils_update(
+						model,
+						{
+							achievements: _Utils_ap(model.achievements, base.achievements),
+							bestStreak: A2($elm$core$Basics$max, model.bestStreak, base.bestStreak),
+							dailyBestTime: dbt,
+							dailyCompleted: _Utils_eq(dcd, model.dailyDate),
+							history: _Utils_ap(model.history, base.history),
+							sfxEnabled: base.sfxEnabled,
+							skipped: model.skipped + base.totalSkipped,
+							solved: model.solved + base.totalSolved,
+							theme: base.theme,
+							timeAttackBest: tab,
+							totalTime: model.totalTime + base.totalTime
+						});
+				}),
+			A9(
+				$elm$json$Json$Decode$map8,
+				$author$project$Main$DecodedBase,
 				A2(
 					$elm$json$Json$Decode$map,
 					$elm$core$Maybe$withDefault(0),
@@ -6553,8 +6540,28 @@ var $author$project$Main$decodeStats = F2(
 						A2(
 							$elm$json$Json$Decode$field,
 							'history',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))),
-			json);
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault($author$project$Main$Dark),
+					$elm$json$Json$Decode$maybe(
+						A2($elm$json$Json$Decode$field, 'theme', $author$project$Main$themeDecoder)))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(0),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'timeAttackBest', $elm$json$Json$Decode$int))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(''),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'dailyCompletedDate', $elm$json$Json$Decode$string))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(0),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'dailyBestTime', $elm$json$Json$Decode$int))));
+		var _v0 = A2($elm$json$Json$Decode$decodeString, decoder, json);
 		if (_v0.$ === 'Ok') {
 			var newModel = _v0.a;
 			return newModel;
@@ -6573,59 +6580,78 @@ var $author$project$Main$difficultyName = function (diff) {
 	}
 };
 var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
-var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
-var $author$project$Main$parseAndValidate = F2(
-	function (input, cardValues) {
-		var tokens = $author$project$Main$tokenize(input);
-		var _v0 = $author$project$Main$parseExpr(tokens);
-		if (_v0.$ === 'Nothing') {
-			return $elm$core$Result$Err('表达式格式错误，请检查括号和数字');
+var $elm$core$String$foldl = _String_foldl;
+var $elm$core$Basics$modBy = _Basics_modBy;
+var $author$project$Main$dateSeedInt = function (s) {
+	return A3(
+		$elm$core$String$foldl,
+		F2(
+			function (c, acc) {
+				return A2(
+					$elm$core$Basics$modBy,
+					2147483647,
+					(acc * 31) + $elm$core$Char$toCode(c));
+			}),
+		0,
+		s);
+};
+var $author$project$Main$Add = {$: 'Add'};
+var $author$project$Main$Div = {$: 'Div'};
+var $author$project$Main$Mul = {$: 'Mul'};
+var $author$project$Main$Sub = {$: 'Sub'};
+var $elm$core$List$append = F2(
+	function (xs, ys) {
+		if (!ys.b) {
+			return xs;
 		} else {
-			var _v1 = _v0.a;
-			var expr = _v1.a;
-			var rest = _v1.b;
-			if (!$elm$core$List$isEmpty(rest)) {
-				return $elm$core$Result$Err('表达式有多余内容');
-			} else {
-				var usedNums = $author$project$Main$extractNums(expr);
-				if (!A2($author$project$Main$matchCards, cardValues, usedNums)) {
-					return $elm$core$Result$Err('使用的数字与牌面不匹配（必须且只能用4张牌各一次）');
-				} else {
-					var _v2 = $author$project$Main$evalExpr(expr);
-					if (_v2.$ === 'Nothing') {
-						return $elm$core$Result$Err('计算错误（可能除以零）');
-					} else {
-						var result = _v2.a;
-						return $elm$core$Result$Ok(result);
-					}
-				}
-			}
+			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
 		}
 	});
-var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
-var $elm$json$Json$Encode$bool = _Json_wrap;
-var $elm$json$Json$Encode$int = _Json_wrap;
-var $elm$json$Json$Encode$list = F2(
-	function (func, entries) {
-		return _Json_wrap(
-			A3(
-				$elm$core$List$foldl,
-				_Json_addEntry(func),
-				_Json_emptyArray(_Utils_Tuple0),
-				entries));
+var $elm$core$List$concat = function (lists) {
+	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
+};
+var $elm$core$List$concatMap = F2(
+	function (f, list) {
+		return $elm$core$List$concat(
+			A2($elm$core$List$map, f, list));
 	});
-var $elm$json$Json$Encode$object = function (pairs) {
-	return _Json_wrap(
-		A3(
-			$elm$core$List$foldl,
-			F2(
-				function (_v0, obj) {
-					var k = _v0.a;
-					var v = _v0.b;
-					return A3(_Json_addField, k, v, obj);
-				}),
-			_Json_emptyObject(_Utils_Tuple0),
-			pairs));
+var $author$project$Main$allPairs = function (n) {
+	return A2(
+		$elm$core$List$concatMap,
+		function (i) {
+			return A2(
+				$elm$core$List$map,
+				function (j) {
+					return _Utils_Tuple2(i, j);
+				},
+				A2($elm$core$List$range, i + 1, n - 1));
+		},
+		A2($elm$core$List$range, 0, n - 2));
+};
+var $author$project$Main$applyOp = F3(
+	function (op, a, b) {
+		switch (op.$) {
+			case 'Add':
+				return $elm$core$Maybe$Just(a + b);
+			case 'Sub':
+				return $elm$core$Maybe$Just(a - b);
+			case 'Mul':
+				return $elm$core$Maybe$Just(a * b);
+			default:
+				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
+		}
+	});
+var $author$project$Main$opSymbol = function (op) {
+	switch (op.$) {
+		case 'Add':
+			return '+';
+		case 'Sub':
+			return '-';
+		case 'Mul':
+			return '*';
+		default:
+			return '/';
+	}
 };
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
@@ -6753,104 +6779,6 @@ var $elm$core$List$take = F2(
 	function (n, list) {
 		return A3($elm$core$List$takeFast, 0, n, list);
 	});
-var $author$project$Main$encodeStats = function (model) {
-	return A2(
-		$elm$json$Json$Encode$encode,
-		0,
-		$elm$json$Json$Encode$object(
-			_List_fromArray(
-				[
-					_Utils_Tuple2(
-					'bestStreak',
-					$elm$json$Json$Encode$int(model.bestStreak)),
-					_Utils_Tuple2(
-					'totalSolved',
-					$elm$json$Json$Encode$int(model.solved)),
-					_Utils_Tuple2(
-					'totalSkipped',
-					$elm$json$Json$Encode$int(model.skipped)),
-					_Utils_Tuple2(
-					'totalTime',
-					$elm$json$Json$Encode$int(model.totalTime)),
-					_Utils_Tuple2(
-					'achievements',
-					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
-					_Utils_Tuple2(
-					'sfxEnabled',
-					$elm$json$Json$Encode$bool(model.sfxEnabled)),
-					_Utils_Tuple2(
-					'history',
-					A2(
-						$elm$json$Json$Encode$list,
-						$elm$json$Json$Encode$string,
-						A2($elm$core$List$take, 20, model.history)))
-				])));
-};
-var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
-var $author$project$Main$saveCmd = function (model) {
-	return $author$project$Main$saveToStorage(
-		$author$project$Main$encodeStats(model));
-};
-var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
-var $elm$core$Process$sleep = _Process_sleep;
-var $author$project$Main$Add = {$: 'Add'};
-var $author$project$Main$Div = {$: 'Div'};
-var $author$project$Main$Mul = {$: 'Mul'};
-var $author$project$Main$Sub = {$: 'Sub'};
-var $elm$core$List$append = F2(
-	function (xs, ys) {
-		if (!ys.b) {
-			return xs;
-		} else {
-			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
-		}
-	});
-var $elm$core$List$concat = function (lists) {
-	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
-};
-var $elm$core$List$concatMap = F2(
-	function (f, list) {
-		return $elm$core$List$concat(
-			A2($elm$core$List$map, f, list));
-	});
-var $author$project$Main$allPairs = function (n) {
-	return A2(
-		$elm$core$List$concatMap,
-		function (i) {
-			return A2(
-				$elm$core$List$map,
-				function (j) {
-					return _Utils_Tuple2(i, j);
-				},
-				A2($elm$core$List$range, i + 1, n - 1));
-		},
-		A2($elm$core$List$range, 0, n - 2));
-};
-var $author$project$Main$applyOp = F3(
-	function (op, a, b) {
-		switch (op.$) {
-			case 'Add':
-				return $elm$core$Maybe$Just(a + b);
-			case 'Sub':
-				return $elm$core$Maybe$Just(a - b);
-			case 'Mul':
-				return $elm$core$Maybe$Just(a * b);
-			default:
-				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
-		}
-	});
-var $author$project$Main$opSymbol = function (op) {
-	switch (op.$) {
-		case 'Add':
-			return '+';
-		case 'Sub':
-			return '-';
-		case 'Mul':
-			return '*';
-		default:
-			return '/';
-	}
-};
 var $author$project$Main$removeAt = F2(
 	function (idx, list) {
 		return _Utils_ap(
@@ -7021,7 +6949,503 @@ var $author$project$Main$solve24 = function (nums) {
 				},
 				solutions)));
 };
+var $author$project$Main$generateDailyCards = function (dateStr) {
+	var tryFindSuitable = F2(
+		function (initSeed, attempt) {
+			tryFindSuitable:
+			while (true) {
+				var generator = A2(
+					$elm$random$Random$list,
+					4,
+					$author$project$Main$randomCard(13));
+				var _v0 = A2($elm$random$Random$step, generator, initSeed);
+				var dailyCards = _v0.a;
+				var nextSeed = _v0.b;
+				if ($elm$core$List$isEmpty(
+					$author$project$Main$solve24(
+						A2(
+							$elm$core$List$map,
+							function (c) {
+								return c.value;
+							},
+							dailyCards))) && (attempt < 100)) {
+					var $temp$initSeed = nextSeed,
+						$temp$attempt = attempt + 1;
+					initSeed = $temp$initSeed;
+					attempt = $temp$attempt;
+					continue tryFindSuitable;
+				} else {
+					return dailyCards;
+				}
+			}
+		});
+	var dailySeed = $elm$random$Random$initialSeed(
+		$author$project$Main$dateSeedInt(dateStr));
+	var cards = A2(tryFindSuitable, dailySeed, 0);
+	return A2(
+		$elm$core$Task$perform,
+		$author$project$Main$NewCards,
+		$elm$core$Task$succeed(cards));
+};
+var $author$project$Main$hintOpName = function (expr) {
+	switch (expr.$) {
+		case 'AddE':
+			return '加法';
+		case 'SubE':
+			return '减法';
+		case 'MulE':
+			return '乘法';
+		case 'DivE':
+			return '除法';
+		default:
+			return '';
+	}
+};
+var $author$project$Main$hintLevel1 = function (expr) {
+	if (expr.$ === 'Num') {
+		var n = expr.a;
+		return '答案就是 ' + $author$project$Main$fmt(n);
+	} else {
+		var op = $author$project$Main$hintOpName(expr);
+		return '提示：试着用' + (op + '来完成最后一步');
+	}
+};
+var $author$project$Main$hintLevel2 = function (expr) {
+	switch (expr.$) {
+		case 'Num':
+			var n = expr.a;
+			return '答案就是 ' + $author$project$Main$fmt(n);
+		case 'AddE':
+			var l = expr.a;
+			var r = expr.b;
+			var _v1 = _Utils_Tuple2(
+				$author$project$Main$evalExpr(l),
+				$author$project$Main$evalExpr(r));
+			if ((_v1.a.$ === 'Just') && (_v1.b.$ === 'Just')) {
+				var lv = _v1.a.a;
+				var rv = _v1.b.a;
+				return '提示：' + ($author$project$Main$fmt(lv) + (' + ' + ($author$project$Main$fmt(rv) + ' = 24')));
+			} else {
+				return $author$project$Main$hintLevel1(expr);
+			}
+		case 'SubE':
+			var l = expr.a;
+			var r = expr.b;
+			var _v2 = _Utils_Tuple2(
+				$author$project$Main$evalExpr(l),
+				$author$project$Main$evalExpr(r));
+			if ((_v2.a.$ === 'Just') && (_v2.b.$ === 'Just')) {
+				var lv = _v2.a.a;
+				var rv = _v2.b.a;
+				return '提示：' + ($author$project$Main$fmt(lv) + (' - ' + ($author$project$Main$fmt(rv) + ' = 24')));
+			} else {
+				return $author$project$Main$hintLevel1(expr);
+			}
+		case 'MulE':
+			var l = expr.a;
+			var r = expr.b;
+			var _v3 = _Utils_Tuple2(
+				$author$project$Main$evalExpr(l),
+				$author$project$Main$evalExpr(r));
+			if ((_v3.a.$ === 'Just') && (_v3.b.$ === 'Just')) {
+				var lv = _v3.a.a;
+				var rv = _v3.b.a;
+				return '提示：' + ($author$project$Main$fmt(lv) + (' × ' + ($author$project$Main$fmt(rv) + ' = 24')));
+			} else {
+				return $author$project$Main$hintLevel1(expr);
+			}
+		default:
+			var l = expr.a;
+			var r = expr.b;
+			var _v4 = _Utils_Tuple2(
+				$author$project$Main$evalExpr(l),
+				$author$project$Main$evalExpr(r));
+			if ((_v4.a.$ === 'Just') && (_v4.b.$ === 'Just')) {
+				var lv = _v4.a.a;
+				var rv = _v4.b.a;
+				return '提示：' + ($author$project$Main$fmt(lv) + (' ÷ ' + ($author$project$Main$fmt(rv) + ' = 24')));
+			} else {
+				return $author$project$Main$hintLevel1(expr);
+			}
+	}
+};
+var $author$project$Main$getStepHint = F2(
+	function (level, solution) {
+		var _v0 = $author$project$Main$parseExpr(
+			$author$project$Main$tokenize(solution));
+		if (_v0.$ === 'Nothing') {
+			return solution;
+		} else {
+			var _v1 = _v0.a;
+			var expr = _v1.a;
+			var rest = _v1.b;
+			if (!$elm$core$List$isEmpty(rest)) {
+				return solution;
+			} else {
+				switch (level) {
+					case 1:
+						return $author$project$Main$hintLevel1(expr);
+					case 2:
+						return $author$project$Main$hintLevel2(expr);
+					default:
+						return '参考解法：' + solution;
+				}
+			}
+		}
+	});
+var $author$project$Main$Success = {$: 'Success'};
+var $elm$core$List$maybeCons = F3(
+	function (f, mx, xs) {
+		var _v0 = f(mx);
+		if (_v0.$ === 'Just') {
+			var x = _v0.a;
+			return A2($elm$core$List$cons, x, xs);
+		} else {
+			return xs;
+		}
+	});
+var $elm$core$List$filterMap = F2(
+	function (f, xs) {
+		return A3(
+			$elm$core$List$foldr,
+			$elm$core$List$maybeCons(f),
+			_List_Nil,
+			xs);
+	});
+var $elm$core$Basics$ge = _Utils_ge;
+var $author$project$Main$checkAchievements = function (model) {
+	var all = _List_fromArray(
+		[
+			_Utils_Tuple2('首杀', model.solved >= 1),
+			_Utils_Tuple2('三连冠', model.streak >= 3),
+			_Utils_Tuple2('五连冠', model.streak >= 5),
+			_Utils_Tuple2('十连冠', model.streak >= 10),
+			_Utils_Tuple2('速算大师', (model.timer <= 10) && (model.solved > 0)),
+			_Utils_Tuple2('百题斩', model.solved >= 100),
+			_Utils_Tuple2(
+			'每日首胜',
+			_Utils_eq(model.gameMode, $author$project$Main$Daily) && model.dailyCompleted),
+			_Utils_Tuple2('极速60秒', model.timeAttackBest >= 5),
+			_Utils_Tuple2('火神', model.streak >= 20)
+		]);
+	return A2(
+		$elm$core$List$filterMap,
+		function (_v0) {
+			var name = _v0.a;
+			var cond = _v0.b;
+			return (cond && (!A2($elm$core$List$member, name, model.achievements))) ? $elm$core$Maybe$Just(name) : $elm$core$Maybe$Nothing;
+		},
+		all);
+};
+var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
+var $elm$json$Json$Encode$bool = _Json_wrap;
+var $elm$json$Json$Encode$int = _Json_wrap;
+var $elm$json$Json$Encode$list = F2(
+	function (func, entries) {
+		return _Json_wrap(
+			A3(
+				$elm$core$List$foldl,
+				_Json_addEntry(func),
+				_Json_emptyArray(_Utils_Tuple0),
+				entries));
+	});
+var $elm$json$Json$Encode$object = function (pairs) {
+	return _Json_wrap(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (_v0, obj) {
+					var k = _v0.a;
+					var v = _v0.b;
+					return A3(_Json_addField, k, v, obj);
+				}),
+			_Json_emptyObject(_Utils_Tuple0),
+			pairs));
+};
+var $author$project$Main$themeEncoder = function (t) {
+	if (t.$ === 'Dark') {
+		return $elm$json$Json$Encode$string('dark');
+	} else {
+		return $elm$json$Json$Encode$string('light');
+	}
+};
+var $author$project$Main$encodeStats = function (model) {
+	return A2(
+		$elm$json$Json$Encode$encode,
+		0,
+		$elm$json$Json$Encode$object(
+			_List_fromArray(
+				[
+					_Utils_Tuple2(
+					'bestStreak',
+					$elm$json$Json$Encode$int(model.bestStreak)),
+					_Utils_Tuple2(
+					'totalSolved',
+					$elm$json$Json$Encode$int(model.solved)),
+					_Utils_Tuple2(
+					'totalSkipped',
+					$elm$json$Json$Encode$int(model.skipped)),
+					_Utils_Tuple2(
+					'totalTime',
+					$elm$json$Json$Encode$int(model.totalTime)),
+					_Utils_Tuple2(
+					'achievements',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
+					_Utils_Tuple2(
+					'sfxEnabled',
+					$elm$json$Json$Encode$bool(model.sfxEnabled)),
+					_Utils_Tuple2(
+					'history',
+					A2(
+						$elm$json$Json$Encode$list,
+						$elm$json$Json$Encode$string,
+						A2($elm$core$List$take, 20, model.history))),
+					_Utils_Tuple2(
+					'theme',
+					$author$project$Main$themeEncoder(model.theme)),
+					_Utils_Tuple2(
+					'timeAttackBest',
+					$elm$json$Json$Encode$int(model.timeAttackBest)),
+					_Utils_Tuple2(
+					'dailyCompletedDate',
+					$elm$json$Json$Encode$string(
+						model.dailyCompleted ? model.dailyDate : '')),
+					_Utils_Tuple2(
+					'dailyBestTime',
+					$elm$json$Json$Encode$int(model.dailyBestTime))
+				])));
+};
+var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
+var $author$project$Main$saveCmd = function (model) {
+	return $author$project$Main$saveToStorage(
+		$author$project$Main$encodeStats(model));
+};
+var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
+var $author$project$Main$handleCorrect = function (model) {
+	var _v0 = model.gameMode;
+	switch (_v0.$) {
+		case 'TimeAttack':
+			var newTimeLeft = model.timeLeft + 10;
+			var newStreak = model.streak + 1;
+			var sfx = (newStreak >= 2) ? _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$playSound(
+					'streak:' + $elm$core$String$fromInt(newStreak)),
+					$author$project$Main$spawnParticles(30 + (newStreak * 5))
+				]) : _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$spawnParticles(30)
+				]);
+			var newScore = model.timeAttackScore + 1;
+			var newHistory = A2($author$project$Main$addToHistory, model.input, model.history);
+			var newBestStreak = A2($elm$core$Basics$max, newStreak, model.bestStreak);
+			var newModel = _Utils_update(
+				model,
+				{
+					bestStreak: newBestStreak,
+					hintLevel: 0,
+					history: newHistory,
+					input: '',
+					message: '+' + ($elm$core$String$fromInt(newScore) + '分！+10秒！'),
+					messageType: $author$project$Main$Success,
+					pendingNewCards: true,
+					showHint: false,
+					solved: model.solved + 1,
+					streak: newStreak,
+					timeAttackScore: newScore,
+					timeLeft: newTimeLeft
+				});
+			return _Utils_Tuple2(
+				newModel,
+				$elm$core$Platform$Cmd$batch(
+					_Utils_ap(
+						_List_fromArray(
+							[
+								A2(
+								$elm$core$Task$perform,
+								function (_v1) {
+									return $author$project$Main$DelayedNewCards;
+								},
+								$elm$core$Process$sleep(600)),
+								$author$project$Main$saveCmd(newModel),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v2) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							]),
+						sfx)));
+		case 'Daily':
+			var newStreak = model.streak + 1;
+			var newSolved = model.solved + 1;
+			var newHistory = A2($author$project$Main$addToHistory, model.input, model.history);
+			var newDailyCompleted = true;
+			var newDailyBestTime = ((!model.dailyBestTime) || (_Utils_cmp(model.timer, model.dailyBestTime) < 0)) ? model.timer : model.dailyBestTime;
+			var newBestStreak = A2($elm$core$Basics$max, newStreak, model.bestStreak);
+			var newAch = $author$project$Main$checkAchievements(
+				_Utils_update(
+					model,
+					{dailyCompleted: true, solved: newSolved, streak: newStreak}));
+			var isFirstDaily = !model.dailyCompleted;
+			var hasNewAch = !$elm$core$List$isEmpty(newAch);
+			var newModel = _Utils_update(
+				model,
+				{
+					achievementTimer: hasNewAch ? 5 : 0,
+					achievements: _Utils_ap(model.achievements, newAch),
+					bestStreak: newBestStreak,
+					dailyBestTime: newDailyBestTime,
+					dailyCompleted: newDailyCompleted,
+					hintLevel: 0,
+					history: newHistory,
+					input: '',
+					message: hasNewAch ? ('解锁成就！' + (model.input + ' = 24')) : (isFirstDaily ? ('今日挑战完成！' + (model.input + ' = 24')) : ('正确！' + (model.input + ' = 24'))),
+					messageType: $author$project$Main$Success,
+					newAchievements: newAch,
+					pendingNewCards: true,
+					showHint: false,
+					solved: newSolved,
+					streak: newStreak
+				});
+			var sfx = hasNewAch ? _List_fromArray(
+				[
+					$author$project$Main$playSound('achievement'),
+					$author$project$Main$spawnParticles(50)
+				]) : ((newStreak >= 2) ? _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$playSound(
+					'streak:' + $elm$core$String$fromInt(newStreak)),
+					$author$project$Main$spawnParticles(40)
+				]) : _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$spawnParticles(30)
+				]));
+			return _Utils_Tuple2(
+				newModel,
+				$elm$core$Platform$Cmd$batch(
+					_Utils_ap(
+						_List_fromArray(
+							[
+								A2(
+								$elm$core$Task$perform,
+								function (_v3) {
+									return $author$project$Main$DelayedNewCards;
+								},
+								$elm$core$Process$sleep(800)),
+								$author$project$Main$saveCmd(newModel),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v4) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							]),
+						sfx)));
+		default:
+			var newStreak = model.streak + 1;
+			var newSolved = model.solved + 1;
+			var newHistory = A2($author$project$Main$addToHistory, model.input, model.history);
+			var newBestStreak = A2($elm$core$Basics$max, newStreak, model.bestStreak);
+			var newAch = $author$project$Main$checkAchievements(
+				_Utils_update(
+					model,
+					{solved: newSolved, streak: newStreak}));
+			var hasNewAch = !$elm$core$List$isEmpty(newAch);
+			var newModel = _Utils_update(
+				model,
+				{
+					achievementTimer: hasNewAch ? 5 : 0,
+					achievements: _Utils_ap(model.achievements, newAch),
+					bestStreak: newBestStreak,
+					hintLevel: 0,
+					history: newHistory,
+					input: '',
+					message: hasNewAch ? ('解锁成就！' + (model.input + ' = 24')) : ('正确！' + (model.input + ' = 24')),
+					messageType: $author$project$Main$Success,
+					newAchievements: newAch,
+					pendingNewCards: true,
+					showHint: false,
+					solved: newSolved,
+					streak: newStreak
+				});
+			var sfx = hasNewAch ? _List_fromArray(
+				[
+					$author$project$Main$playSound('achievement'),
+					$author$project$Main$spawnParticles(50)
+				]) : ((newStreak >= 2) ? _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$playSound(
+					'streak:' + $elm$core$String$fromInt(newStreak)),
+					$author$project$Main$spawnParticles(40)
+				]) : _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$spawnParticles(30)
+				]));
+			return _Utils_Tuple2(
+				newModel,
+				$elm$core$Platform$Cmd$batch(
+					_Utils_ap(
+						_List_fromArray(
+							[
+								A2(
+								$elm$core$Task$perform,
+								function (_v5) {
+									return $author$project$Main$DelayedNewCards;
+								},
+								$elm$core$Process$sleep(800)),
+								$author$project$Main$saveCmd(newModel),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v6) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							]),
+						sfx)));
+	}
+};
+var $elm$core$Basics$min = F2(
+	function (x, y) {
+		return (_Utils_cmp(x, y) < 0) ? x : y;
+	});
+var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
+var $author$project$Main$parseAndValidate = F2(
+	function (input, cardValues) {
+		var tokens = $author$project$Main$tokenize(input);
+		var _v0 = $author$project$Main$parseExpr(tokens);
+		if (_v0.$ === 'Nothing') {
+			return $elm$core$Result$Err('表达式格式错误，请检查括号和数字');
+		} else {
+			var _v1 = _v0.a;
+			var expr = _v1.a;
+			var rest = _v1.b;
+			if (!$elm$core$List$isEmpty(rest)) {
+				return $elm$core$Result$Err('表达式有多余内容');
+			} else {
+				var usedNums = $author$project$Main$extractNums(expr);
+				if (!A2($author$project$Main$matchCards, cardValues, usedNums)) {
+					return $elm$core$Result$Err('使用的数字与牌面不匹配（必须且只能用4张牌各一次）');
+				} else {
+					var _v2 = $author$project$Main$evalExpr(expr);
+					if (_v2.$ === 'Nothing') {
+						return $elm$core$Result$Err('计算错误（可能除以零）');
+					} else {
+						var result = _v2.a;
+						return $elm$core$Result$Ok(result);
+					}
+				}
+			}
+		}
+	});
+var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		switch (msg.$) {
@@ -7034,34 +7458,39 @@ var $author$project$Main$update = F2(
 							return c.value;
 						},
 						cards));
-				return $elm$core$List$isEmpty(solutions) ? _Utils_Tuple2(
-					model,
-					$author$project$Main$generateCards(model.difficulty)) : _Utils_Tuple2(
-					_Utils_update(
+				if ($elm$core$List$isEmpty(solutions)) {
+					return _Utils_Tuple2(
 						model,
-						{
-							allSolutions: solutions,
-							cards: cards,
-							hintText: '',
-							input: '',
-							message: (!model.totalGames) ? '请用下面4张牌算出24点！' : '新的一组牌！',
-							messageType: $author$project$Main$Info,
-							pendingNewCards: false,
-							showHint: false,
-							timer: 0,
-							totalGames: model.totalGames + 1
-						}),
-					$elm$core$Platform$Cmd$batch(
-						_List_fromArray(
-							[
-								$author$project$Main$playSound('deal'),
-								A2(
-								$elm$core$Task$attempt,
-								function (_v1) {
-									return $author$project$Main$NoOp;
-								},
-								$elm$browser$Browser$Dom$focus('expr-input'))
-							])));
+						$author$project$Main$generateCards(model.difficulty));
+				} else {
+					var isFirstGame = !model.totalGames;
+					var baseMsg = function () {
+						var _v2 = model.gameMode;
+						switch (_v2.$) {
+							case 'Daily':
+								return '今日挑战！用这4张牌算出24';
+							case 'TimeAttack':
+								return '计时挑战！答对+10秒，跳过-5秒';
+							default:
+								return isFirstGame ? '请用下面4张牌算出24点！' : '新的一组牌！';
+						}
+					}();
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{allSolutions: solutions, cards: cards, hintLevel: 0, hintText: '', input: '', message: baseMsg, messageType: $author$project$Main$Info, pendingNewCards: false, showAllAnswers: false, showHint: false, timer: 0, totalGames: model.totalGames + 1}),
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$playSound('deal'),
+									A2(
+									$elm$core$Task$attempt,
+									function (_v1) {
+										return $author$project$Main$NoOp;
+									},
+									$elm$browser$Browser$Dom$focus('expr-input'))
+								])));
+				}
 			case 'UpdateInput':
 				var s = msg.a;
 				var live = A2(
@@ -7085,77 +7514,18 @@ var $author$project$Main$update = F2(
 						return c.value;
 					},
 					model.cards);
-				var _v2 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
-				if (_v2.$ === 'Ok') {
-					var result = _v2.a;
+				var _v3 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
+				if (_v3.$ === 'Ok') {
+					var result = _v3.a;
 					if ($elm$core$Basics$abs(result - 24) < 0.0001) {
-						var newStreak = model.streak + 1;
-						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
-						var newBest = A2($elm$core$Basics$max, newStreak, model.bestStreak);
-						var newAch = $author$project$Main$checkAchievements(
-							_Utils_update(
-								model,
-								{solved: model.solved + 1, streak: newStreak}));
-						var hasNewAch = !$elm$core$List$isEmpty(newAch);
-						var newModel = _Utils_update(
-							model,
-							{
-								achievementTimer: hasNewAch ? 5 : 0,
-								achievements: _Utils_ap(model.achievements, newAch),
-								bestStreak: newBest,
-								history: newHistory,
-								input: '',
-								message: hasNewAch ? ('🏆 解锁成就！「' + (model.input + ' = 24」')) : ('🎉 正确！「' + (model.input + ' = 24」')),
-								messageType: $author$project$Main$Success,
-								newAchievements: newAch,
-								pendingNewCards: true,
-								showHint: false,
-								solved: model.solved + 1,
-								streak: newStreak
-							});
-						var sfx = hasNewAch ? _List_fromArray(
-							[
-								$author$project$Main$playSound('achievement'),
-								$author$project$Main$spawnParticles(50)
-							]) : ((newStreak >= 2) ? _List_fromArray(
-							[
-								$author$project$Main$playSound('success'),
-								$author$project$Main$playSound(
-								'streak:' + $elm$core$String$fromInt(newStreak)),
-								$author$project$Main$spawnParticles(40)
-							]) : _List_fromArray(
-							[
-								$author$project$Main$playSound('success'),
-								$author$project$Main$spawnParticles(30)
-							]));
-						return _Utils_Tuple2(
-							newModel,
-							$elm$core$Platform$Cmd$batch(
-								_Utils_ap(
-									_List_fromArray(
-										[
-											A2(
-											$elm$core$Task$perform,
-											function (_v3) {
-												return $author$project$Main$DelayedNewCards;
-											},
-											$elm$core$Process$sleep(800)),
-											$author$project$Main$saveCmd(newModel),
-											A2(
-											$elm$core$Task$attempt,
-											function (_v4) {
-												return $author$project$Main$NoOp;
-											},
-											$elm$browser$Browser$Dom$focus('expr-input'))
-										]),
-									sfx)));
+						return $author$project$Main$handleCorrect(model);
 					} else {
 						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 						var errModel = _Utils_update(
 							model,
 							{
 								history: newHistory,
-								message: '❌ 结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
+								message: '结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
 								messageType: $author$project$Main$Error,
 								streak: 0
 							});
@@ -7164,11 +7534,11 @@ var $author$project$Main$update = F2(
 							$author$project$Main$playSound('error'));
 					}
 				} else {
-					var errMsg = _v2.a;
+					var errMsg = _v3.a;
 					var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 					var newModel = _Utils_update(
 						model,
-						{history: newHistory, message: '❌ ' + errMsg, messageType: $author$project$Main$Error, streak: 0});
+						{history: newHistory, message: errMsg, messageType: $author$project$Main$Error, streak: 0});
 					return _Utils_Tuple2(
 						newModel,
 						$elm$core$Platform$Cmd$batch(
@@ -7179,19 +7549,27 @@ var $author$project$Main$update = F2(
 								])));
 				}
 			case 'ShowHint':
-				var _v5 = model.allSolutions;
-				if (!_v5.b) {
+				var _v4 = model.allSolutions;
+				if (!_v4.b) {
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
-							{message: '💡 这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
+							{message: '这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
 						$author$project$Main$playSound('click'));
 				} else {
-					var first = _v5.a;
+					var first = _v4.a;
+					var newLevel = A2($elm$core$Basics$min, 3, model.hintLevel + 1);
+					var hint = A2($author$project$Main$getStepHint, newLevel, first);
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
-							{hintText: first, message: '💡 提示已显示', messageType: $author$project$Main$Info, showHint: true}),
+							{
+								hintLevel: newLevel,
+								hintText: hint,
+								message: '提示已显示（' + ($elm$core$String$fromInt(newLevel) + '/3）'),
+								messageType: $author$project$Main$Info,
+								showHint: true
+							}),
 						$author$project$Main$playSound('click'));
 				}
 			case 'ShowAllAnswers':
@@ -7199,71 +7577,167 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{
-							message: '📋 显示全部 ' + ($elm$core$String$fromInt(
+							message: '显示全部 ' + ($elm$core$String$fromInt(
 								$elm$core$List$length(model.allSolutions)) + ' 个解法'),
 							messageType: $author$project$Main$Info,
 							showAllAnswers: true
 						}),
 					$author$project$Main$playSound('click'));
 			case 'NewGame':
-				return _Utils_Tuple2(
-					_Utils_update(
+				var _v5 = model.gameMode;
+				if (_v5.$ === 'TimeAttack') {
+					var newModel = _Utils_update(
 						model,
-						{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, streak: 0, timer: 0}),
-					$elm$core$Platform$Cmd$batch(
-						_List_fromArray(
-							[
-								$author$project$Main$generateCards(model.difficulty),
-								$author$project$Main$playSound('click')
-							])));
+						{message: '计时挑战开始！', messageType: $author$project$Main$Info, pendingNewCards: true, timeAttackScore: 0, timeLeft: 60, timer: 0});
+					return _Utils_Tuple2(
+						newModel,
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$generateCards(model.difficulty),
+									$author$project$Main$playSound('click')
+								])));
+				} else {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, streak: 0, timer: 0}),
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$generateCards(model.difficulty),
+									$author$project$Main$playSound('click')
+								])));
+				}
 			case 'Skip':
-				var newModel = _Utils_update(
-					model,
-					{
-						message: '跳过！答案是：' + A2(
-							$elm$core$Maybe$withDefault,
-							'',
-							$elm$core$List$head(model.allSolutions)),
-						messageType: $author$project$Main$Info,
-						pendingNewCards: true,
-						showAllAnswers: true,
-						skipped: model.skipped + 1,
-						streak: 0
-					});
-				return _Utils_Tuple2(
-					newModel,
-					$elm$core$Platform$Cmd$batch(
-						_List_fromArray(
-							[
-								model.pendingNewCards ? $elm$core$Platform$Cmd$none : A2(
-								$elm$core$Task$perform,
-								function (_v6) {
-									return $author$project$Main$DelayedNewCards;
-								},
-								$elm$core$Process$sleep(1500)),
-								$author$project$Main$saveCmd(newModel),
-								$author$project$Main$playSound('click')
-							])));
+				if (model.pendingNewCards) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					var _v6 = model.gameMode;
+					if (_v6.$ === 'TimeAttack') {
+						var newTimeLeft = A2($elm$core$Basics$max, 0, model.timeLeft - 5);
+						var newModel = _Utils_update(
+							model,
+							{
+								message: '跳过！扣5秒。答案是：' + A2(
+									$elm$core$Maybe$withDefault,
+									'',
+									$elm$core$List$head(model.allSolutions)),
+								messageType: $author$project$Main$Info,
+								pendingNewCards: true,
+								showAllAnswers: true,
+								skipped: model.skipped + 1,
+								streak: 0,
+								timeLeft: newTimeLeft
+							});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										A2(
+										$elm$core$Task$perform,
+										function (_v7) {
+											return $author$project$Main$DelayedNewCards;
+										},
+										$elm$core$Process$sleep(1500)),
+										$author$project$Main$saveCmd(newModel),
+										$author$project$Main$playSound('click')
+									])));
+					} else {
+						var newModel = _Utils_update(
+							model,
+							{
+								message: '跳过！答案是：' + A2(
+									$elm$core$Maybe$withDefault,
+									'',
+									$elm$core$List$head(model.allSolutions)),
+								messageType: $author$project$Main$Info,
+								pendingNewCards: true,
+								showAllAnswers: true,
+								skipped: model.skipped + 1,
+								streak: 0
+							});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										A2(
+										$elm$core$Task$perform,
+										function (_v8) {
+											return $author$project$Main$DelayedNewCards;
+										},
+										$elm$core$Process$sleep(1500)),
+										$author$project$Main$saveCmd(newModel),
+										$author$project$Main$playSound('click')
+									])));
+					}
+				}
 			case 'Tick':
-				var newTotalTime = model.totalTime + 1;
-				var newTimer = model.timer + 1;
-				var newAchTimer = A2($elm$core$Basics$max, 0, model.achievementTimer - 1);
-				var clearedAch = ((!newAchTimer) && (model.achievementTimer > 0)) ? _List_Nil : model.newAchievements;
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{achievementTimer: newAchTimer, newAchievements: clearedAch, timer: newTimer, totalTime: newTotalTime}),
-					$elm$core$Platform$Cmd$none);
+				var _v9 = model.gameMode;
+				if (_v9.$ === 'TimeAttack') {
+					if (model.timeLeft <= 1) {
+						var finalScore = model.timeAttackScore;
+						var newBest = A2($elm$core$Basics$max, finalScore, model.timeAttackBest);
+						var gameOverModel = _Utils_update(
+							model,
+							{
+								message: '时间到！最终得分：' + $elm$core$String$fromInt(finalScore),
+								messageType: $author$project$Main$Info,
+								pendingNewCards: false,
+								timeAttackBest: newBest,
+								timeLeft: 0
+							});
+						return _Utils_Tuple2(
+							gameOverModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$saveCmd(gameOverModel),
+										$author$project$Main$playSound('error')
+									])));
+					} else {
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{timeLeft: model.timeLeft - 1, timer: model.timer + 1, totalTime: model.totalTime + 1}),
+							$elm$core$Platform$Cmd$none);
+					}
+				} else {
+					var newTotalTime = model.totalTime + 1;
+					var newTimer = model.timer + 1;
+					var newAchTimer = A2($elm$core$Basics$max, 0, model.achievementTimer - 1);
+					var clearedAch = ((!newAchTimer) && (model.achievementTimer > 0)) ? _List_Nil : model.newAchievements;
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{achievementTimer: newAchTimer, newAchievements: clearedAch, timer: newTimer, totalTime: newTotalTime}),
+						$elm$core$Platform$Cmd$none);
+				}
 			case 'StorageLoaded':
 				var json = msg.a;
 				var newModel = A2($author$project$Main$decodeStats, json, model);
 				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
 			case 'DelayedNewCards':
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{pendingNewCards: false}),
-					$author$project$Main$generateCards(model.difficulty));
+				var _v10 = model.gameMode;
+				if (_v10.$ === 'TimeAttack') {
+					return (model.timeLeft <= 0) ? _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{pendingNewCards: false}),
+						$elm$core$Platform$Cmd$none) : _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{pendingNewCards: false}),
+						$author$project$Main$generateCards(model.difficulty));
+				} else {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{pendingNewCards: false}),
+						$author$project$Main$generateCards(model.difficulty));
+				}
 			case 'DismissAchievements':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -7289,7 +7763,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{message: '📋 已复制到剪贴板', messageType: $author$project$Main$Info}),
+						{message: '已复制到剪贴板', messageType: $author$project$Main$Info}),
 					$author$project$Main$copyToClipboard(ans + ' = 24'));
 			case 'ChangeDifficulty':
 				var diff = msg.a;
@@ -7311,12 +7785,75 @@ var $author$project$Main$update = F2(
 								$author$project$Main$generateCards(diff),
 								$author$project$Main$playSound('click')
 							])));
+			case 'ChangeTheme':
+				var t = msg.a;
+				var newModel = _Utils_update(
+					model,
+					{theme: t});
+				return _Utils_Tuple2(
+					newModel,
+					$author$project$Main$saveCmd(newModel));
+			case 'SetGameMode':
+				var mode = msg.a;
+				switch (mode.$) {
+					case 'Daily':
+						var newModel = _Utils_update(
+							model,
+							{gameMode: $author$project$Main$Daily, hintLevel: 0, input: '', newAchievements: _List_Nil, showAllAnswers: false, showHint: false, streak: 0});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$generateDailyCards(model.dailyDate),
+										$author$project$Main$playSound('click')
+									])));
+					case 'TimeAttack':
+						var newModel = _Utils_update(
+							model,
+							{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeLeft: 60, timer: 0});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$generateCards(model.difficulty),
+										$author$project$Main$playSound('click')
+									])));
+					default:
+						var newModel = _Utils_update(
+							model,
+							{gameMode: $author$project$Main$Classic, hintLevel: 0, input: '', message: '返回经典模式', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, showHint: false, streak: 0});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$generateCards(model.difficulty),
+										$author$project$Main$playSound('click')
+									])));
+				}
+			case 'StartTimeAttack':
+				var newModel = _Utils_update(
+					model,
+					{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeLeft: 60, timer: 0});
+				return _Utils_Tuple2(
+					newModel,
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								$author$project$Main$generateCards(model.difficulty),
+								$author$project$Main$playSound('click')
+							])));
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
 	});
 var $author$project$Main$ChangeDifficulty = function (a) {
 	return {$: 'ChangeDifficulty', a: a};
+};
+var $author$project$Main$ChangeTheme = function (a) {
+	return {$: 'ChangeTheme', a: a};
 };
 var $author$project$Main$ClearHistory = {$: 'ClearHistory'};
 var $author$project$Main$CopyAnswer = function (a) {
@@ -7326,16 +7863,20 @@ var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$Easy = {$: 'Easy'};
 var $author$project$Main$Hard = {$: 'Hard'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
+var $author$project$Main$SetGameMode = function (a) {
+	return {$: 'SetGameMode', a: a};
+};
 var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
 var $author$project$Main$ShowHint = {$: 'ShowHint'};
 var $author$project$Main$Skip = {$: 'Skip'};
+var $author$project$Main$StartTimeAttack = {$: 'StartTimeAttack'};
 var $author$project$Main$SubmitAnswer = {$: 'SubmitAnswer'};
 var $author$project$Main$ToggleSFX = {$: 'ToggleSFX'};
 var $author$project$Main$UpdateInput = function (a) {
 	return {$: 'UpdateInput', a: a};
 };
 var $author$project$Main$allAchievements = _List_fromArray(
-	['首杀', '三连冠', '五连冠', '十连冠', '速算大师', '百题斩']);
+	['首杀', '三连冠', '五连冠', '十连冠', '速算大师', '百题斩', '每日首胜', '极速60秒', '火神']);
 var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -7353,21 +7894,29 @@ var $elm$virtual_dom$VirtualDom$node = function (tag) {
 var $elm$html$Html$node = $elm$virtual_dom$VirtualDom$node;
 var $elm$virtual_dom$VirtualDom$text = _VirtualDom_text;
 var $elm$html$Html$text = $elm$virtual_dom$VirtualDom$text;
-var $author$project$Main$css = A3(
-	$elm$html$Html$node,
-	'style',
-	_List_Nil,
-	_List_fromArray(
-		[
-			$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #8892b0; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.diff-btn:hover { background: rgba(255,255,255,0.1); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; border-color: transparent; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; color: #8892b0; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
-		]));
+var $author$project$Main$css = function (theme) {
+	var themeCls = function () {
+		if (theme.$ === 'Dark') {
+			return 'dark';
+		} else {
+			return 'light';
+		}
+	}();
+	return A3(
+		$elm$html$Html$node,
+		'style',
+		_List_Nil,
+		_List_fromArray(
+			[
+				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
+			]));
+};
 var $author$project$Main$decodeKey = function (_v0) {
 	var key = _v0.key;
 	var ctrlKey = _v0.ctrlKey;
 	return ((key === 'Enter') && ctrlKey) ? $author$project$Main$SubmitAnswer : ((key === 'Enter') ? $author$project$Main$SubmitAnswer : ((key === 'Escape') ? $author$project$Main$UpdateInput('') : $author$project$Main$NoOp));
 };
 var $elm$html$Html$div = _VirtualDom_node('div');
-var $elm$core$Basics$modBy = _Basics_modBy;
 var $author$project$Main$formatTime = function (seconds) {
 	var s = A2($elm$core$Basics$modBy, 60, seconds);
 	var m = (seconds / 60) | 0;
@@ -7457,6 +8006,13 @@ var $elm$html$Html$Attributes$placeholder = $elm$html$Html$Attributes$stringProp
 var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
 var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
+var $author$project$Main$themeName = function (t) {
+	if (t.$ === 'Dark') {
+		return 'Dark';
+	} else {
+		return 'Light';
+	}
+};
 var $elm$html$Html$Attributes$title = $elm$html$Html$Attributes$stringProperty('title');
 var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
 var $elm$html$Html$ul = _VirtualDom_node('ul');
@@ -7483,7 +8039,7 @@ var $author$project$Main$viewAchievementToast = F2(
 						]),
 					_List_fromArray(
 						[
-							$elm$html$Html$text('🏆 解锁成就')
+							$elm$html$Html$text('解锁成就')
 						])),
 					A2(
 					$elm$html$Html$div,
@@ -7497,12 +8053,106 @@ var $author$project$Main$viewAchievementToast = F2(
 						]))
 				]));
 	});
-var $author$project$Main$viewCard = function (card) {
+var $author$project$Main$viewCard = F2(
+	function (card, streak) {
+		var glowClass = (streak >= 20) ? ' streak-god' : ((streak >= 10) ? ' streak-fire' : ((streak >= 3) ? ' streak-glow' : ''));
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('card' + glowClass)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('card-corner-top')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'color', card.color),
+									A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
+									A2($elm$html$Html$Attributes$style, 'font-weight', '800')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(card.display)
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'color', card.color),
+									A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(card.suit)
+								]))
+						])),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('card-center-suit'),
+							A2($elm$html$Html$Attributes$style, 'color', card.color)
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(card.suit)
+						])),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('card-corner-bottom')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'color', card.color),
+									A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
+									A2($elm$html$Html$Attributes$style, 'font-weight', '800')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(card.display)
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'color', card.color),
+									A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(card.suit)
+								]))
+						]))
+				]));
+	});
+var $elm$core$Basics$clamp = F3(
+	function (low, high, number) {
+		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
+	});
+var $author$project$Main$viewTimeAttackBar = function (timeLeft) {
+	var pct = A3($elm$core$Basics$clamp, 0, 100, ((timeLeft * 100) / 60) | 0);
+	var barClass = (timeLeft <= 10) ? 'time-attack-fill danger' : ((timeLeft <= 25) ? 'time-attack-fill warn' : 'time-attack-fill ok');
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
 			[
-				$elm$html$Html$Attributes$class('card')
+				$elm$html$Html$Attributes$class('time-attack-bar')
 			]),
 		_List_fromArray(
 			[
@@ -7510,93 +8160,39 @@ var $author$project$Main$viewCard = function (card) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$elm$html$Html$Attributes$class('card-corner-top')
+						$elm$html$Html$Attributes$class(barClass),
+						A2(
+						$elm$html$Html$Attributes$style,
+						'width',
+						$elm$core$String$fromInt(pct) + '%')
 					]),
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$span,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'color', card.color),
-								A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
-								A2($elm$html$Html$Attributes$style, 'font-weight', '800')
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(card.display)
-							])),
-						A2(
-						$elm$html$Html$span,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'color', card.color),
-								A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(card.suit)
-							]))
-					])),
-				A2(
-				$elm$html$Html$div,
-				_List_fromArray(
-					[
-						$elm$html$Html$Attributes$class('card-center-suit'),
-						A2($elm$html$Html$Attributes$style, 'color', card.color)
-					]),
-				_List_fromArray(
-					[
-						$elm$html$Html$text(card.suit)
-					])),
-				A2(
-				$elm$html$Html$div,
-				_List_fromArray(
-					[
-						$elm$html$Html$Attributes$class('card-corner-bottom')
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$span,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'color', card.color),
-								A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
-								A2($elm$html$Html$Attributes$style, 'font-weight', '800')
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(card.display)
-							])),
-						A2(
-						$elm$html$Html$span,
-						_List_fromArray(
-							[
-								A2($elm$html$Html$Attributes$style, 'color', card.color),
-								A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(card.suit)
-							]))
-					]))
+				_List_Nil)
 			]));
 };
 var $author$project$Main$view = function (model) {
 	var total = model.solved + model.skipped;
 	var winRate = (!total) ? '0%' : ($elm$core$String$fromInt(
 		$elm$core$Basics$round((model.solved / total) * 100)) + '%');
+	var themeClass = function () {
+		var _v0 = model.theme;
+		if (_v0.$ === 'Dark') {
+			return 'dark';
+		} else {
+			return 'light';
+		}
+	}();
 	var streakFire = (model.streak >= 2) ? ' 🔥' : '';
+	var isTimeAttack = _Utils_eq(model.gameMode, $author$project$Main$TimeAttack);
+	var isDaily = _Utils_eq(model.gameMode, $author$project$Main$Daily);
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
 			[
-				$elm$html$Html$Attributes$class('container')
+				$elm$html$Html$Attributes$class('container ' + themeClass)
 			]),
 		_List_fromArray(
 			[
-				$author$project$Main$css,
+				$author$project$Main$css(model.theme),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -7605,6 +8201,20 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('theme-toggle'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$ChangeTheme(
+									_Utils_eq(model.theme, $author$project$Main$Dark) ? $author$project$Main$Light : $author$project$Main$Dark))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								$author$project$Main$themeName(model.theme))
+							])),
 						A2(
 						$elm$html$Html$h1,
 						_List_Nil,
@@ -7629,9 +8239,113 @@ var $author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								$elm$html$Html$text(
-								model.sfxEnabled ? '🔊 音效开' : '🔇 音效关')
+								model.sfxEnabled ? '音效开' : '音效关')
 							]))
 					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('mode-row')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.gameMode, $author$project$Main$Classic) ? 'mode-btn active' : 'mode-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$SetGameMode($author$project$Main$Classic))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('经典')
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.gameMode, $author$project$Main$Daily) ? 'mode-btn active' : 'mode-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$SetGameMode($author$project$Main$Daily))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								'每日挑战' + ((isDaily && model.dailyCompleted) ? ' ✓' : ''))
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) ? 'mode-btn active' : 'mode-btn'),
+								$elm$html$Html$Events$onClick(
+								$author$project$Main$SetGameMode($author$project$Main$TimeAttack))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('计时挑战')
+							]))
+					])),
+				isTimeAttack ? A2(
+				$elm$html$Html$div,
+				_List_Nil,
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'text-align', 'center'),
+								A2($elm$html$Html$Attributes$style, 'font-size', '0.85em'),
+								A2($elm$html$Html$Attributes$style, 'color', '#e94560'),
+								A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
+								A2($elm$html$Html$Attributes$style, 'margin-bottom', '4px')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								$elm$core$String$fromInt(model.timeLeft) + ('秒  |  得分: ' + ($elm$core$String$fromInt(model.timeAttackScore) + ('  |  最佳: ' + $elm$core$String$fromInt(model.timeAttackBest)))))
+							])),
+						$author$project$Main$viewTimeAttackBar(model.timeLeft)
+					])) : $elm$html$Html$text(''),
+				isDaily ? A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'text-align', 'center'),
+						A2($elm$html$Html$Attributes$style, 'font-size', '0.85em'),
+						A2($elm$html$Html$Attributes$style, 'margin-bottom', '8px')
+					]),
+				_List_fromArray(
+					[
+						model.dailyCompleted ? A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', '#2ecc71'),
+								A2($elm$html$Html$Attributes$style, 'font-weight', '600')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								'今日已完成！最佳用时: ' + $author$project$Main$formatTime(model.dailyBestTime))
+							])) : A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', '#ffd700'),
+								A2($elm$html$Html$Attributes$style, 'font-weight', '600')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('完成今日挑战，解锁专属成就！')
+							]))
+					])) : $elm$html$Html$text(''),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -7812,7 +8526,12 @@ var $author$project$Main$view = function (model) {
 					[
 						$elm$html$Html$Attributes$class('cards-area')
 					]),
-				A2($elm$core$List$map, $author$project$Main$viewCard, model.cards)),
+				A2(
+					$elm$core$List$map,
+					function (c) {
+						return A2($author$project$Main$viewCard, c, model.streak);
+					},
+					model.cards)),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -7832,9 +8551,9 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('💡 参考解法：' + model.hintText)
+						$elm$html$Html$text(model.hintText)
 					])) : $elm$html$Html$text(''),
-				A2(
+				(!isTimeAttack) ? A2(
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
@@ -7881,7 +8600,7 @@ var $author$project$Main$view = function (model) {
 							[
 								$elm$html$Html$text('高级')
 							]))
-					])),
+					])) : $elm$html$Html$text(''),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -7935,7 +8654,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('✓ 提交')
+								$elm$html$Html$text('提交')
 							])),
 						A2(
 						$elm$html$Html$button,
@@ -7946,7 +8665,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('💡 提示')
+								$elm$html$Html$text('提示')
 							])),
 						A2(
 						$elm$html$Html$button,
@@ -7957,7 +8676,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('📋 全部')
+								$elm$html$Html$text('全部')
 							])),
 						A2(
 						$elm$html$Html$button,
@@ -7968,9 +8687,19 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('⏭ 跳过')
+								$elm$html$Html$text('跳过')
 							])),
-						A2(
+						(isTimeAttack && (model.timeLeft <= 0)) ? A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('btn btn-primary'),
+								$elm$html$Html$Events$onClick($author$project$Main$StartTimeAttack)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('再来一局')
+							])) : A2(
 						$elm$html$Html$button,
 						_List_fromArray(
 							[
@@ -7979,7 +8708,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('🔄 新局')
+								$elm$html$Html$text('新局')
 							]))
 					])),
 				(!$elm$core$List$isEmpty(model.history)) ? A2(
@@ -8006,7 +8735,7 @@ var $author$project$Main$view = function (model) {
 									]),
 								_List_fromArray(
 									[
-										$elm$html$Html$text('📝 尝试记录')
+										$elm$html$Html$text('尝试记录')
 									])),
 								A2(
 								$elm$html$Html$button,
@@ -8116,7 +8845,7 @@ var $author$project$Main$view = function (model) {
 										]),
 									_List_fromArray(
 										[
-											$elm$html$Html$text('知道了 👍')
+											$elm$html$Html$text('知道了')
 										]))
 								]))
 						]))) : $elm$html$Html$text(''),
@@ -8133,7 +8862,7 @@ var $author$project$Main$view = function (model) {
 						_List_Nil,
 						_List_fromArray(
 							[
-								$elm$html$Html$text('🏅 成就墙')
+								$elm$html$Html$text('成就墙')
 							])),
 						A2(
 						$elm$html$Html$div,
@@ -8285,4 +9014,10 @@ var $author$project$Main$view = function (model) {
 var $author$project$Main$main = $elm$browser$Browser$element(
 	{init: $author$project$Main$init, subscriptions: $author$project$Main$subscriptions, update: $author$project$Main$update, view: $author$project$Main$view});
 _Platform_export({'Main':{'init':$author$project$Main$main(
-	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
+	A2(
+		$elm$json$Json$Decode$andThen,
+		function (today) {
+			return $elm$json$Json$Decode$succeed(
+				{today: today});
+		},
+		A2($elm$json$Json$Decode$field, 'today', $elm$json$Json$Decode$string)))(0)}});}(this));
