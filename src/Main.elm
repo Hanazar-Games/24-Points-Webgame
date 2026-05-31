@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Dom as Dom
@@ -6,6 +6,7 @@ import Html exposing (Html, div, text, button, input, h1, h2, h3, p, span, br, n
 import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
+import Json.Encode as E
 import Random
 import Task
 import Time
@@ -37,6 +38,7 @@ type alias Model =
     , totalGames : Int
     , timer : Int
     , showAllAnswers : Bool
+    , totalTime : Int
     }
 
 type Msg
@@ -48,7 +50,15 @@ type Msg
     | NewGame
     | Skip
     | Tick Time.Posix
+    | StorageLoaded String
     | NoOp
+
+
+-- ============ PORTS ============
+
+port saveToStorage : String -> Cmd msg
+port loadFromStorage : () -> Cmd msg
+port receiveFromStorage : (String -> msg) -> Sub msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -324,9 +334,49 @@ init _ =
       , totalGames = 0
       , timer = 0
       , showAllAnswers = False
+      , totalTime = 0
       }
-    , generateCards
+    , Cmd.batch [ generateCards, loadFromStorage () ]
     )
+
+
+-- ============ STORAGE ============
+
+encodeStats : Model -> String
+encodeStats model =
+    E.encode 0
+        (E.object
+            [ ("bestStreak", E.int model.bestStreak)
+            , ("totalSolved", E.int model.solved)
+            , ("totalSkipped", E.int model.skipped)
+            , ("totalTime", E.int model.totalTime)
+            ]
+        )
+
+decodeStats : String -> Model -> Model
+decodeStats json model =
+    case D.decodeString
+        (D.map4
+            (\bs tsD tsk tt ->
+                { model
+                    | bestStreak = max model.bestStreak bs
+                    , solved = model.solved + tsD
+                    , skipped = model.skipped + tsk
+                    , totalTime = model.totalTime + tt
+                }
+            )
+            (D.maybe (D.field "bestStreak" D.int) |> D.map (Maybe.withDefault 0))
+            (D.maybe (D.field "totalSolved" D.int) |> D.map (Maybe.withDefault 0))
+            (D.maybe (D.field "totalSkipped" D.int) |> D.map (Maybe.withDefault 0))
+            (D.maybe (D.field "totalTime" D.int) |> D.map (Maybe.withDefault 0))
+        )
+        json of
+        Ok newModel -> newModel
+        Err _ -> model
+
+saveCmd : Model -> Cmd Msg
+saveCmd model =
+    saveToStorage (encodeStats model)
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -362,38 +412,28 @@ update msg model =
                     if abs(result - 24) < 0.0001 then
                         let newStreak = model.streak + 1
                             newBest = max newStreak model.bestStreak
+                            newModel = { model
+                                | message = "🎉 正确！「" ++ model.input ++ " = 24」"
+                                , messageType = Success
+                                , streak = newStreak
+                                , solved = model.solved + 1
+                                , bestStreak = newBest
+                                , input = ""
+                                , showHint = False
+                                }
                         in
-                        ( { model
-                            | message = "🎉 正确！「" ++ model.input ++ " = 24」"
-                            , messageType = Success
-                            , streak = newStreak
-                            , solved = model.solved + 1
-                            , bestStreak = newBest
-                            , input = ""
-                            , showHint = False
-                          }
-                        , generateCards
-                        )
+                        ( newModel, Cmd.batch [ generateCards, saveCmd newModel ] )
                     else
-                        ( { model
-                            | message = "❌ 结果是 " ++ fmt result ++ "，不是24！"
-                            , messageType = Error
-                            , streak = 0
-                          }
-                        , Cmd.none
-                        )
+                        let errModel = { model | message = "❌ 结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0 }
+                        in ( errModel, Cmd.none )
                 Err errMsg ->
-                    ( { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0 }, Cmd.none )
+                    let newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0 }
+                    in ( newModel, saveCmd newModel )
 
         ShowHint ->
             case model.allSolutions of
                 [] ->
-                    ( { model
-                        | message = "💡 这道题无解！点击「跳过」换一组。"
-                        , messageType = Info
-                      }
-                    , Cmd.none
-                    )
+                    ( { model | message = "💡 这道题无解！点击「跳过」换一组。", messageType = Info }, Cmd.none )
                 first :: _ ->
                     ( { model
                         | showHint = True
@@ -408,34 +448,39 @@ update msg model =
             ( { model | showAllAnswers = True, message = "📋 显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, Cmd.none )
 
         NewGame ->
-            ( { model
-                | streak = 0
-                , message = "新游戏开始！"
-                , messageType = Info
-                , timer = 0
-                , showAllAnswers = False
-              }
+            ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False }
             , generateCards
             )
 
         Skip ->
-            ( { model
-                | skipped = model.skipped + 1
-                , streak = 0
-                , message = "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
-                , messageType = Info
-                , showAllAnswers = True
-              }
-            , generateCards
-            )
+            let newModel =
+                    { model
+                        | skipped = model.skipped + 1
+                        , streak = 0
+                        , message = "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
+                        , messageType = Info
+                        , showAllAnswers = True
+                    }
+            in
+            ( newModel, Cmd.batch [ generateCards, saveCmd newModel ] )
 
-        Tick _ -> ( { model | timer = model.timer + 1 }, Cmd.none )
+        Tick _ ->
+            let newModel = { model | timer = model.timer + 1, totalTime = model.totalTime + 1 }
+            in ( newModel, saveCmd newModel )
+
+        StorageLoaded json ->
+            let newModel = decodeStats json model
+            in ( newModel, Cmd.none )
 
         NoOp -> (model, Cmd.none)
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ = Time.every 1000 Tick
+subscriptions _ =
+    Sub.batch
+        [ Time.every 1000 Tick
+        , receiveFromStorage StorageLoaded
+        ]
 
 
 -- ============ VIEW ============
@@ -549,6 +594,18 @@ view model =
             , div [ class "stat-box" ]
                 [ div [ class "stat-label" ] [ text "用时" ]
                 , div [ class "stat-value" ] [ text (formatTime model.timer) ]
+                ]
+            , div [ class "stat-box" ]
+                [ div [ class "stat-label" ] [ text "总用时" ]
+                , div [ class "stat-value" ] [ text (formatTime model.totalTime) ]
+                ]
+            , div [ class "stat-box" ]
+                [ div [ class "stat-label" ] [ text "胜率" ]
+                , div [ class "stat-value" ]
+                    [ text
+                        (let total = model.solved + model.skipped
+                         in if total == 0 then "0%" else String.fromInt (round (toFloat model.solved / toFloat total * 100)) ++ "%")
+                    ]
                 ]
             ]
         , div [ class "cards-area" ] (List.map viewCard model.cards)
