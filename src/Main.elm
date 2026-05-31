@@ -453,8 +453,14 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .stat-label { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 .stat-value { font-size: 1.5em; font-weight: bold; color: #e94560; }
 .cards-area { display: flex; justify-content: center; gap: 15px; margin: 30px 0; flex-wrap: wrap; }
-.card { width: 100px; height: 140px; background: #fff; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: transform 0.3s; }
-.card:hover { transform: translateY(-5px); }
+.card { width: 100px; height: 140px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; }
+.card:hover { transform: translateY(-8px) rotateY(5deg) scale(1.05); box-shadow: 0 15px 35px rgba(0,0,0,0.5); }
+@keyframes dealIn { 0% { opacity: 0; transform: translateY(-40px) scale(0.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+.card { animation: dealIn 0.5s ease backwards; }
+.card:nth-child(1) { animation-delay: 0.1s; }
+.card:nth-child(2) { animation-delay: 0.2s; }
+.card:nth-child(3) { animation-delay: 0.3s; }
+.card:nth-child(4) { animation-delay: 0.4s; }
 .card-display { font-size: 2em; font-weight: bold; color: #333; }
 .card-suit { font-size: 1.5em; margin-top: 4px; }
 .card-value-bottom { position: absolute; bottom: 6px; right: 8px; font-size: 0.9em; font-weight: bold; color: #333; }
@@ -472,6 +478,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .msg-success { background: rgba(46, 204, 113, 0.15); border: 1px solid rgba(46, 204, 113, 0.3); color: #2ecc71; }
 .msg-error { background: rgba(231, 76, 60, 0.15); border: 1px solid rgba(231, 76, 60, 0.3); color: #e74c3c; }
 .msg-info { background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); color: #3498db; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+.msg-pulse { animation: pulse 0.5s ease; }
+.msg-shake { animation: shake 0.5s ease; }
 .hint-box { background: rgba(255, 193, 7, 0.1); border: 1px dashed rgba(255, 193, 7, 0.4); border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.1em; }
 .rules { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-top: 30px; border: 1px solid rgba(255,255,255,0.08); }
 .rules h3 { margin-top: 0; color: #e94560; }
@@ -494,8 +504,8 @@ formatTime seconds =
 msgClass : MsgType -> String
 msgClass mt =
     case mt of
-        Success -> "message msg-success"
-        Error -> "message msg-error"
+        Success -> "message msg-success msg-pulse"
+        Error -> "message msg-error msg-shake"
         Info -> "message msg-info"
         None -> "message"
 
