@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>24点挑战 v0.4.2</title>
+  <title>24点挑战 v0.4.3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.2">
+  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.3">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,6 +81,9 @@
         },
         tick: function() {
           playTone(600, 'sine', 0.04, 0, 0.04);
+        },
+        key: function() {
+          playTone(1200, 'sine', 0.02, 0, 0.03);
         }
       };
 
@@ -106,6 +109,7 @@
           else if (type === 'click') SFX.click();
           else if (type === 'achievement') SFX.achievement();
           else if (type === 'tick') SFX.tick();
+          else if (type === 'key') SFX.key();
           else if (type.startsWith('streak:')) SFX.streak(parseInt(type.split(':')[1]));
         } catch(e) {}
       });
