@@ -2,7 +2,7 @@ port module Main exposing (main)
 
 import Browser
 import Browser.Dom as Dom
-import Html exposing (Html, div, text, button, input, h1, h2, h3, p, span, br, node, ul, li, code)
+import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
 import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
@@ -39,6 +39,8 @@ type alias Model =
     , timer : Int
     , showAllAnswers : Bool
     , totalTime : Int
+    , achievements : List String
+    , newAchievements : List String
     }
 
 type Msg
@@ -51,6 +53,7 @@ type Msg
     | Skip
     | Tick Time.Posix
     | StorageLoaded String
+    | DismissAchievements
     | NoOp
 
 
@@ -59,6 +62,8 @@ type Msg
 port saveToStorage : String -> Cmd msg
 port loadFromStorage : () -> Cmd msg
 port receiveFromStorage : (String -> msg) -> Sub msg
+port playSound : String -> Cmd msg
+port spawnParticles : Int -> Cmd msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -81,18 +86,18 @@ tokenizeHelp acc chars =
         [] -> List.reverse acc
         c :: rest ->
             if Char.isDigit c then
-                let (digits, remaining) = span Char.isDigit (c :: rest)
+                let (digits, remaining) = spanList Char.isDigit (c :: rest)
                 in tokenizeHelp (String.fromList digits :: acc) remaining
             else
                 tokenizeHelp (String.fromList [c] :: acc) rest
 
-span : (a -> Bool) -> List a -> (List a, List a)
-span p list =
+spanList : (a -> Bool) -> List a -> (List a, List a)
+spanList p list =
     case list of
         [] -> ([], [])
         x :: xs ->
             if p x then
-                let (ys, zs) = span p xs
+                let (ys, zs) = spanList p xs
                 in (x :: ys, zs)
             else ([], list)
 
@@ -335,6 +340,8 @@ init _ =
       , timer = 0
       , showAllAnswers = False
       , totalTime = 0
+      , achievements = []
+      , newAchievements = []
       }
     , Cmd.batch [ generateCards, loadFromStorage () ]
     )
@@ -350,25 +357,28 @@ encodeStats model =
             , ("totalSolved", E.int model.solved)
             , ("totalSkipped", E.int model.skipped)
             , ("totalTime", E.int model.totalTime)
+            , ("achievements", E.list E.string model.achievements)
             ]
         )
 
 decodeStats : String -> Model -> Model
 decodeStats json model =
     case D.decodeString
-        (D.map4
-            (\bs tsD tsk tt ->
+        (D.map5
+            (\bs tsD tsk tt ach ->
                 { model
                     | bestStreak = max model.bestStreak bs
                     , solved = model.solved + tsD
                     , skipped = model.skipped + tsk
                     , totalTime = model.totalTime + tt
+                    , achievements = model.achievements ++ ach
                 }
             )
             (D.maybe (D.field "bestStreak" D.int) |> D.map (Maybe.withDefault 0))
             (D.maybe (D.field "totalSolved" D.int) |> D.map (Maybe.withDefault 0))
             (D.maybe (D.field "totalSkipped" D.int) |> D.map (Maybe.withDefault 0))
             (D.maybe (D.field "totalTime" D.int) |> D.map (Maybe.withDefault 0))
+            (D.maybe (D.field "achievements" (D.list D.string)) |> D.map (Maybe.withDefault []))
         )
         json of
         Ok newModel -> newModel
@@ -377,6 +387,20 @@ decodeStats json model =
 saveCmd : Model -> Cmd Msg
 saveCmd model =
     saveToStorage (encodeStats model)
+
+-- ============ ACHIEVEMENTS ============
+
+checkAchievements : Model -> List String
+checkAchievements model =
+    let all =
+            [ ("首杀", model.solved >= 1)
+            , ("三连冠", model.streak >= 3)
+            , ("五连冠", model.streak >= 5)
+            , ("十连冠", model.streak >= 10)
+            , ("速算大师", model.timer <= 10 && model.solved > 0)
+            , ("百题斩", model.solved >= 100)
+            ]
+    in List.filterMap (\(name, cond) -> if cond && not (List.member name model.achievements) then Just name else Nothing) all
 
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -428,28 +452,21 @@ update msg model =
                         in ( errModel, Cmd.none )
                 Err errMsg ->
                     let newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0 }
-                    in ( newModel, saveCmd newModel )
+                    in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error" ] )
 
         ShowHint ->
             case model.allSolutions of
                 [] ->
-                    ( { model | message = "💡 这道题无解！点击「跳过」换一组。", messageType = Info }, Cmd.none )
+                    ( { model | message = "💡 这道题无解！点击「跳过」换一组。", messageType = Info }, playSound "click" )
                 first :: _ ->
-                    ( { model
-                        | showHint = True
-                        , hintText = first
-                        , message = "💡 提示已显示"
-                        , messageType = Info
-                      }
-                    , Cmd.none
-                    )
+                    ( { model | showHint = True, hintText = first, message = "💡 提示已显示", messageType = Info }, playSound "click" )
 
         ShowAllAnswers ->
-            ( { model | showAllAnswers = True, message = "📋 显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, Cmd.none )
+            ( { model | showAllAnswers = True, message = "📋 显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, playSound "click" )
 
         NewGame ->
-            ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False }
-            , generateCards
+            ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [] }
+            , Cmd.batch [ generateCards, playSound "click" ]
             )
 
         Skip ->
@@ -462,7 +479,7 @@ update msg model =
                         , showAllAnswers = True
                     }
             in
-            ( newModel, Cmd.batch [ generateCards, saveCmd newModel ] )
+            ( newModel, Cmd.batch [ generateCards, saveCmd newModel, playSound "click" ] )
 
         Tick _ ->
             let newModel = { model | timer = model.timer + 1, totalTime = model.totalTime + 1 }
@@ -471,6 +488,9 @@ update msg model =
         StorageLoaded json ->
             let newModel = decodeStats json model
             in ( newModel, Cmd.none )
+
+        DismissAchievements ->
+            ( { model | newAchievements = [] }, Cmd.none )
 
         NoOp -> (model, Cmd.none)
 
@@ -490,56 +510,83 @@ css =
     node "style"
         []
         [ text """
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); margin: 0; min-height: 100vh; color: #eee; }
-.container { max-width: 800px; margin: 0 auto; padding: 20px; }
-.header { text-align: center; margin-bottom: 30px; }
-.header h1 { font-size: 3em; margin: 0; background: linear-gradient(90deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(233,69,96,0.3); }
-.header p { color: #a0a0a0; margin-top: 8px; font-size: 1.1em; }
-.stats { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
-.stat-box { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 24px; text-align: center; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
-.stat-label { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-.stat-value { font-size: 1.5em; font-weight: bold; color: #e94560; }
-.cards-area { display: flex; justify-content: center; gap: 15px; margin: 30px 0; flex-wrap: wrap; }
-.card { width: 100px; height: 140px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; }
-.card:hover { transform: translateY(-8px) rotateY(5deg) scale(1.05); box-shadow: 0 15px 35px rgba(0,0,0,0.5); }
-@keyframes dealIn { 0% { opacity: 0; transform: translateY(-40px) scale(0.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
-.card { animation: dealIn 0.5s ease backwards; }
-.card:nth-child(1) { animation-delay: 0.1s; }
-.card:nth-child(2) { animation-delay: 0.2s; }
-.card:nth-child(3) { animation-delay: 0.3s; }
-.card:nth-child(4) { animation-delay: 0.4s; }
-.card-display { font-size: 2em; font-weight: bold; color: #333; }
-.card-suit { font-size: 1.5em; margin-top: 4px; }
-.card-value-bottom { position: absolute; bottom: 6px; right: 8px; font-size: 0.9em; font-weight: bold; color: #333; }
-.input-area { display: flex; gap: 10px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }
-.expr-input { flex: 1; min-width: 250px; max-width: 400px; padding: 14px 18px; border: 2px solid rgba(233,69,96,0.3); border-radius: 10px; background: rgba(0,0,0,0.3); color: #fff; font-size: 1.1em; outline: none; transition: border-color 0.3s; }
-.expr-input:focus { border-color: #e94560; }
-.btn { padding: 14px 24px; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; transition: all 0.3s; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-.btn-primary { background: linear-gradient(135deg, #e94560, #c73e54); color: white; box-shadow: 0 4px 15px rgba(233,69,96,0.4); }
-.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.5); }
-.btn-secondary { background: rgba(255,255,255,0.1); color: #ddd; border: 1px solid rgba(255,255,255,0.2); }
-.btn-secondary:hover { background: rgba(255,255,255,0.2); }
-.btn-success { background: linear-gradient(135deg, #00d9ff, #0099cc); color: white; box-shadow: 0 4px 15px rgba(0,217,255,0.3); }
-.btn-success:hover { transform: translateY(-2px); }
-.message { text-align: center; padding: 16px; border-radius: 10px; margin: 15px 0; font-weight: 500; min-height: 24px; }
-.msg-success { background: rgba(46, 204, 113, 0.15); border: 1px solid rgba(46, 204, 113, 0.3); color: #2ecc71; }
-.msg-error { background: rgba(231, 76, 60, 0.15); border: 1px solid rgba(231, 76, 60, 0.3); color: #e74c3c; }
-.msg-info { background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); color: #3498db; }
-@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
-@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
-.msg-pulse { animation: pulse 0.5s ease; }
-.msg-shake { animation: shake 0.5s ease; }
-.hint-box { background: rgba(255, 193, 7, 0.1); border: 1px dashed rgba(255, 193, 7, 0.4); border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.1em; }
-.rules { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-top: 30px; border: 1px solid rgba(255,255,255,0.08); }
-.rules h3 { margin-top: 0; color: #e94560; }
-.rules ul { padding-left: 20px; color: #bbb; line-height: 1.8; }
-.rules code { background: rgba(233,69,96,0.15); padding: 2px 6px; border-radius: 4px; color: #e94560; }
-.buttons-row { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
-.all-answers { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid rgba(255,255,255,0.1); }
-.all-answers-title { font-weight: bold; color: #e94560; margin-bottom: 12px; font-size: 1.1em; }
-.answers-list { display: flex; flex-direction: column; gap: 8px; }
-.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1.05em; color: #ddd; border-left: 3px solid #e94560; }
-.footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.85em; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }
+.container { max-width: 900px; margin: 0 auto; padding: 16px; }
+.header { text-align: center; margin-bottom: 24px; position: relative; }
+.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }
+.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }
+.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }
+.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }
+.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }
+.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }
+.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }
+@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }
+.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }
+.card {
+  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);
+  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);
+  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);
+}
+.card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }
+.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }
+.card:active { transform: scale(0.95); }
+@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }
+.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }
+.card:nth-child(1) { animation-delay: 0.08s; }
+.card:nth-child(2) { animation-delay: 0.16s; }
+.card:nth-child(3) { animation-delay: 0.24s; }
+.card:nth-child(4) { animation-delay: 0.32s; }
+.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }
+.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }
+.card-corner-val { font-size: 1.1em; font-weight: 800; }
+.card-corner-suit { font-size: 0.85em; }
+.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }
+.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }
+.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }
+.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }
+.expr-input::placeholder { color: #555; }
+.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }
+.btn::after { content: ''; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }
+.btn:active::after { width: 200px; height: 200px; }
+.btn:active { transform: scale(0.92); }
+.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }
+.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }
+.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }
+.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }
+.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }
+.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }
+.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
+@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }
+.msg-pulse { animation: pulse 0.6s ease; }
+.msg-shake { animation: shake 0.6s ease; }
+.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }
+.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }
+.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }
+.achievement-toast .ach-name { font-size: 1.2em; }
+@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }
+.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }
+.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }
+.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }
+.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }
+.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }
+.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }
+.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }
+.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }
+.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }
+.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }
+.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }
+.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }
+@media (max-width: 600px) { .header h1 { font-size: 2em; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }
         """ ]
 
 formatTime : Int -> String
@@ -556,56 +603,62 @@ msgClass mt =
         Info -> "message msg-info"
         None -> "message"
 
+allAchievements : List String
+allAchievements = ["首杀", "三连冠", "五连冠", "十连冠", "速算大师", "百题斩"]
 
 viewCard : Card -> Html Msg
 viewCard card =
-    div [ class "card", style "border" ("2px solid " ++ card.color) ]
-        [ div [ class "card-display", style "color" card.color ] [ text card.display ]
-        , div [ class "card-suit", style "color" card.color ] [ text card.suit ]
-        , div [ class "card-value-bottom", style "color" card.color ] [ text card.display ]
+    div [ class "card" ]
+        [ div [ class "card-corner-top" ]
+            [ span [ style "color" card.color, style "font-size" "1.1em", style "font-weight" "800" ] [ text card.display ]
+            , span [ style "color" card.color, style "font-size" "0.85em" ] [ text card.suit ]
+            ]
+        , div [ class "card-center-suit", style "color" card.color ] [ text card.suit ]
+        , div [ class "card-corner-bottom" ]
+            [ span [ style "color" card.color, style "font-size" "1.1em", style "font-weight" "800" ] [ text card.display ]
+            , span [ style "color" card.color, style "font-size" "0.85em" ] [ text card.suit ]
+            ]
         ]
 
+viewAchievementToast : String -> Html Msg
+viewAchievementToast name =
+    div [ class "achievement-toast" ]
+        [ div [ class "ach-title" ] [ text "🏆 解锁成就" ]
+        , div [ class "ach-name" ] [ text name ]
+        ]
 
 view : Model -> Html Msg
 view model =
+    let streakFire = if model.streak >= 2 then " 🔥" else ""
+        total = model.solved + model.skipped
+        winRate = if total == 0 then "0%" else String.fromInt (round (toFloat model.solved / toFloat total * 100)) ++ "%"
+    in
     div [ class "container" ]
         [ css
         , div [ class "header" ]
-            [ h1 [] [ text "🃏 24点挑战" ]
-            , p [] [ text "用加减乘除和括号，让四张牌算出24" ]
+            [ h1 [] [ text "24点挑战" ]
+            , p [] [ text "用加减乘除和括号，让四张牌算出 24" ]
             ]
         , div [ class "stats" ]
             [ div [ class "stat-box" ]
                 [ div [ class "stat-label" ] [ text "连胜" ]
-                , div [ class "stat-value" ] [ text (String.fromInt model.streak) ]
+                , div [ class "stat-value" ] [ span [] [ text (String.fromInt model.streak) ], span [ class "stat-fire" ] [ text streakFire ] ]
                 ]
             , div [ class "stat-box" ]
                 [ div [ class "stat-label" ] [ text "已解" ]
                 , div [ class "stat-value" ] [ text (String.fromInt model.solved) ]
                 ]
             , div [ class "stat-box" ]
-                [ div [ class "stat-label" ] [ text "最佳连胜" ]
+                [ div [ class "stat-label" ] [ text "最佳" ]
                 , div [ class "stat-value" ] [ text (String.fromInt model.bestStreak) ]
                 ]
             , div [ class "stat-box" ]
-                [ div [ class "stat-label" ] [ text "跳过" ]
-                , div [ class "stat-value" ] [ text (String.fromInt model.skipped) ]
+                [ div [ class "stat-label" ] [ text "胜率" ]
+                , div [ class "stat-value" ] [ text winRate ]
                 ]
             , div [ class "stat-box" ]
                 [ div [ class "stat-label" ] [ text "用时" ]
                 , div [ class "stat-value" ] [ text (formatTime model.timer) ]
-                ]
-            , div [ class "stat-box" ]
-                [ div [ class "stat-label" ] [ text "总用时" ]
-                , div [ class "stat-value" ] [ text (formatTime model.totalTime) ]
-                ]
-            , div [ class "stat-box" ]
-                [ div [ class "stat-label" ] [ text "胜率" ]
-                , div [ class "stat-value" ]
-                    [ text
-                        (let total = model.solved + model.skipped
-                         in if total == 0 then "0%" else String.fromInt (round (toFloat model.solved / toFloat total * 100)) ++ "%")
-                    ]
                 ]
             ]
         , div [ class "cards-area" ] (List.map viewCard model.cards)
@@ -627,11 +680,11 @@ view model =
                 []
             ]
         , div [ class "buttons-row" ]
-            [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "✓ 提交答案" ]
+            [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "✓ 提交" ]
             , button [ class "btn btn-success", onClick ShowHint ] [ text "💡 提示" ]
-            , button [ class "btn btn-secondary", onClick ShowAllAnswers ] [ text "📋 显示全部" ]
+            , button [ class "btn btn-secondary", onClick ShowAllAnswers ] [ text "📋 全部" ]
             , button [ class "btn btn-secondary", onClick Skip ] [ text "⏭ 跳过" ]
-            , button [ class "btn btn-secondary", onClick NewGame ] [ text "🔄 新游戏" ]
+            , button [ class "btn btn-secondary", onClick NewGame ] [ text "🔄 新局" ]
             ]
         , if model.showAllAnswers && not (List.isEmpty model.allSolutions) then
             div [ class "all-answers" ]
@@ -640,6 +693,20 @@ view model =
                 ]
           else
             text ""
+        , if not (List.isEmpty model.newAchievements) then
+            div []
+                (List.map viewAchievementToast model.newAchievements
+                    ++ [ div [ style "text-align" "center", style "margin-top" "8px" ] [ button [ class "btn btn-secondary", onClick DismissAchievements ] [ text "知道了 👍" ] ] ]
+                )
+          else
+            text ""
+        , div [ class "achievements-panel" ]
+            [ h4 [] [ text "🏅 成就墙" ]
+            , div []
+                (List.map (\a ->
+                    span [ class (if List.member a model.achievements then "ach-badge unlocked" else "ach-badge") ] [ text a ]
+                ) allAchievements)
+            ]
         , div [ class "rules" ]
             [ h3 [] [ text "游戏规则" ]
             , p [] [ text "从扑克牌中随机抽取4张牌（A=1, J=11, Q=12, K=13），用加减乘除算出24" ]
@@ -647,17 +714,17 @@ view model =
                 [ li [] [ text "只能使用加、减、乘、除和括号" ]
                 , li [] [ text "每张牌必须且只能使用一次" ]
                 , li [] [ text "最终结果必须恰好等于24" ]
-                , li [] [ text "支持分数运算，如 (8/(3-8/3))*3 = 24" ]
+                , li [] [ text "支持分数运算，如 8/(3-8/3) = 24" ]
                 ]
             , p [] [ text "示例：" ]
             , ul []
-                [ li [] [ text "牌面 3, 3, 8, 8：", code [] [ text "8/(3-8/3)" ], text " = 24" ]
-                , li [] [ text "牌面 4, 4, 10, 10：", code [] [ text "(10*10-4)/4" ], text " = 24" ]
-                , li [] [ text "牌面 1, 5, 5, 5：", code [] [ text "5*(5-1/5)" ], text " = 24" ]
+                [ li [] [ text "3, 3, 8, 8 → ", code [] [ text "8/(3-8/3)" ], text " = 24" ]
+                , li [] [ text "4, 4, 10, 10 → ", code [] [ text "(10*10-4)/4" ], text " = 24" ]
+                , li [] [ text "1, 5, 5, 5 → ", code [] [ text "5*(5-1/5)" ], text " = 24" ]
                 ]
             ]
         , div [ class "footer" ]
-            [ text "用 Elm 语言构建 · 纯函数式编程 · 无运行时错误" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩" ]
         ]
 
 
