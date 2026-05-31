@@ -5555,7 +5555,7 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	});
 var $author$project$Main$init = function (flags) {
 	return _Utils_Tuple2(
-		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, dailyBestTime: 0, dailyCompleted: false, dailyDate: flags.today, difficulty: $author$project$Main$Normal, gameMode: $author$project$Main$Classic, hintLevel: 0, hintText: '', history: _List_Nil, input: '', liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, theme: $author$project$Main$Dark, timeAttackBest: 0, timeAttackScore: 0, timeLeft: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, dailyBestTime: 0, dailyCompleted: false, dailyDate: flags.today, difficulty: $author$project$Main$Normal, fastestSolve: 0, gameMode: $author$project$Main$Classic, hintLevel: 0, hintText: '', history: _List_Nil, input: '', liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, theme: $author$project$Main$Dark, timeAttackBest: 0, timeAttackScore: 0, timeLeft: 0, timer: 0, totalAttempts: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
@@ -5982,6 +5982,7 @@ var $author$project$Main$subscriptions = function (model) {
 var $author$project$Main$Daily = {$: 'Daily'};
 var $author$project$Main$DelayedNewCards = {$: 'DelayedNewCards'};
 var $author$project$Main$Error = {$: 'Error'};
+var $author$project$Main$Hard = {$: 'Hard'};
 var $author$project$Main$NoOp = {$: 'NoOp'};
 var $author$project$Main$TimeAttack = {$: 'TimeAttack'};
 var $elm$core$Basics$abs = function (n) {
@@ -6453,7 +6454,7 @@ var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
-var $elm$json$Json$Decode$map4 = _Json_map4;
+var $elm$json$Json$Decode$map5 = _Json_map5;
 var $elm$json$Json$Decode$map8 = _Json_map8;
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
@@ -6477,91 +6478,108 @@ var $author$project$Main$themeDecoder = A2(
 	$elm$json$Json$Decode$string);
 var $author$project$Main$decodeStats = F2(
 	function (json, model) {
-		var decoder = A5(
-			$elm$json$Json$Decode$map4,
-			F4(
-				function (base, tab, dcd, dbt) {
-					return _Utils_update(
-						model,
-						{
-							achievements: _Utils_ap(model.achievements, base.achievements),
-							bestStreak: A2($elm$core$Basics$max, model.bestStreak, base.bestStreak),
-							dailyBestTime: dbt,
-							dailyCompleted: _Utils_eq(dcd, model.dailyDate),
-							history: _Utils_ap(model.history, base.history),
-							sfxEnabled: base.sfxEnabled,
-							skipped: model.skipped + base.totalSkipped,
-							solved: model.solved + base.totalSolved,
-							theme: base.theme,
-							timeAttackBest: tab,
-							totalTime: model.totalTime + base.totalTime
-						});
-				}),
-			A9(
-				$elm$json$Json$Decode$map8,
-				$author$project$Main$DecodedBase,
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'bestStreak', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalSolved', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalSkipped', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(0),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'achievements',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(true),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'sfxEnabled', $elm$json$Json$Decode$bool))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'history',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault($author$project$Main$Dark),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'theme', $author$project$Main$themeDecoder)))),
+		var baseDecoder = A9(
+			$elm$json$Json$Decode$map8,
+			$author$project$Main$DecodedBase,
 			A2(
 				$elm$json$Json$Decode$map,
 				$elm$core$Maybe$withDefault(0),
 				$elm$json$Json$Decode$maybe(
-					A2($elm$json$Json$Decode$field, 'timeAttackBest', $elm$json$Json$Decode$int))),
-			A2(
-				$elm$json$Json$Decode$map,
-				$elm$core$Maybe$withDefault(''),
-				$elm$json$Json$Decode$maybe(
-					A2($elm$json$Json$Decode$field, 'dailyCompletedDate', $elm$json$Json$Decode$string))),
+					A2($elm$json$Json$Decode$field, 'bestStreak', $elm$json$Json$Decode$int))),
 			A2(
 				$elm$json$Json$Decode$map,
 				$elm$core$Maybe$withDefault(0),
 				$elm$json$Json$Decode$maybe(
-					A2($elm$json$Json$Decode$field, 'dailyBestTime', $elm$json$Json$Decode$int))));
-		var _v0 = A2($elm$json$Json$Decode$decodeString, decoder, json);
+					A2($elm$json$Json$Decode$field, 'totalSolved', $elm$json$Json$Decode$int))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(0),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'totalSkipped', $elm$json$Json$Decode$int))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(0),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(_List_Nil),
+				$elm$json$Json$Decode$maybe(
+					A2(
+						$elm$json$Json$Decode$field,
+						'achievements',
+						$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(true),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'sfxEnabled', $elm$json$Json$Decode$bool))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(_List_Nil),
+				$elm$json$Json$Decode$maybe(
+					A2(
+						$elm$json$Json$Decode$field,
+						'history',
+						$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault($author$project$Main$Dark),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'theme', $author$project$Main$themeDecoder))));
+		var fullDecoder = A2(
+			$elm$json$Json$Decode$andThen,
+			function (base) {
+				return A6(
+					$elm$json$Json$Decode$map5,
+					F5(
+						function (tab, dcd, dbt, fs, ta) {
+							return _Utils_update(
+								model,
+								{
+									achievements: _Utils_ap(model.achievements, base.achievements),
+									bestStreak: A2($elm$core$Basics$max, model.bestStreak, base.bestStreak),
+									dailyBestTime: dbt,
+									dailyCompleted: _Utils_eq(dcd, model.dailyDate),
+									fastestSolve: (fs > 0) ? fs : model.fastestSolve,
+									history: _Utils_ap(model.history, base.history),
+									sfxEnabled: base.sfxEnabled,
+									skipped: model.skipped + base.totalSkipped,
+									solved: model.solved + base.totalSolved,
+									theme: base.theme,
+									timeAttackBest: tab,
+									totalAttempts: model.totalAttempts + ta,
+									totalTime: model.totalTime + base.totalTime
+								});
+						}),
+					A2(
+						$elm$json$Json$Decode$map,
+						$elm$core$Maybe$withDefault(0),
+						$elm$json$Json$Decode$maybe(
+							A2($elm$json$Json$Decode$field, 'timeAttackBest', $elm$json$Json$Decode$int))),
+					A2(
+						$elm$json$Json$Decode$map,
+						$elm$core$Maybe$withDefault(''),
+						$elm$json$Json$Decode$maybe(
+							A2($elm$json$Json$Decode$field, 'dailyCompletedDate', $elm$json$Json$Decode$string))),
+					A2(
+						$elm$json$Json$Decode$map,
+						$elm$core$Maybe$withDefault(0),
+						$elm$json$Json$Decode$maybe(
+							A2($elm$json$Json$Decode$field, 'dailyBestTime', $elm$json$Json$Decode$int))),
+					A2(
+						$elm$json$Json$Decode$map,
+						$elm$core$Maybe$withDefault(0),
+						$elm$json$Json$Decode$maybe(
+							A2($elm$json$Json$Decode$field, 'fastestSolve', $elm$json$Json$Decode$int))),
+					A2(
+						$elm$json$Json$Decode$map,
+						$elm$core$Maybe$withDefault(0),
+						$elm$json$Json$Decode$maybe(
+							A2($elm$json$Json$Decode$field, 'totalAttempts', $elm$json$Json$Decode$int))));
+			},
+			baseDecoder);
+		var _v0 = A2($elm$json$Json$Decode$decodeString, fullDecoder, json);
 		if (_v0.$ === 'Ok') {
 			var newModel = _v0.a;
 			return newModel;
@@ -6576,7 +6594,7 @@ var $author$project$Main$difficultyName = function (diff) {
 		case 'Normal':
 			return '中级（1-13）';
 		default:
-			return '高级（1-13）';
+			return '高级（必须用除法）';
 	}
 };
 var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
@@ -7212,7 +7230,13 @@ var $author$project$Main$encodeStats = function (model) {
 						model.dailyCompleted ? model.dailyDate : '')),
 					_Utils_Tuple2(
 					'dailyBestTime',
-					$elm$json$Json$Encode$int(model.dailyBestTime))
+					$elm$json$Json$Encode$int(model.dailyBestTime)),
+					_Utils_Tuple2(
+					'fastestSolve',
+					$elm$json$Json$Encode$int(model.fastestSolve)),
+					_Utils_Tuple2(
+					'totalAttempts',
+					$elm$json$Json$Encode$int(model.totalAttempts))
 				])));
 };
 var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
@@ -7223,6 +7247,7 @@ var $author$project$Main$saveCmd = function (model) {
 var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
 var $author$project$Main$handleCorrect = function (model) {
+	var newFastest = ((model.timer > 0) && ((!model.fastestSolve) || (_Utils_cmp(model.timer, model.fastestSolve) < 0))) ? model.timer : model.fastestSolve;
 	var _v0 = model.gameMode;
 	switch (_v0.$) {
 		case 'TimeAttack':
@@ -7246,6 +7271,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				model,
 				{
 					bestStreak: newBestStreak,
+					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
@@ -7300,6 +7326,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					bestStreak: newBestStreak,
 					dailyBestTime: newDailyBestTime,
 					dailyCompleted: newDailyCompleted,
+					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
@@ -7363,6 +7390,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					achievementTimer: hasNewAch ? 5 : 0,
 					achievements: _Utils_ap(model.achievements, newAch),
 					bestStreak: newBestStreak,
+					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
@@ -7411,6 +7439,12 @@ var $author$project$Main$handleCorrect = function (model) {
 							]),
 						sfx)));
 	}
+};
+var $author$project$Main$hasDivision = function (s) {
+	return A2($elm$core$String$contains, '/', s);
+};
+var $author$project$Main$hasDivisionSolution = function (solutions) {
+	return A2($elm$core$List$any, $author$project$Main$hasDivision, solutions);
 };
 var $elm$core$Basics$min = F2(
 	function (x, y) {
@@ -7463,33 +7497,39 @@ var $author$project$Main$update = F2(
 						model,
 						$author$project$Main$generateCards(model.difficulty));
 				} else {
-					var isFirstGame = !model.totalGames;
-					var baseMsg = function () {
-						var _v2 = model.gameMode;
-						switch (_v2.$) {
-							case 'Daily':
-								return '今日挑战！用这4张牌算出24';
-							case 'TimeAttack':
-								return '计时挑战！答对+10秒，跳过-5秒';
-							default:
-								return isFirstGame ? '请用下面4张牌算出24点！' : '新的一组牌！';
-						}
-					}();
-					return _Utils_Tuple2(
-						_Utils_update(
+					if (_Utils_eq(model.difficulty, $author$project$Main$Hard) && (!$author$project$Main$hasDivisionSolution(solutions))) {
+						return _Utils_Tuple2(
 							model,
-							{allSolutions: solutions, cards: cards, hintLevel: 0, hintText: '', input: '', message: baseMsg, messageType: $author$project$Main$Info, pendingNewCards: false, showAllAnswers: false, showHint: false, timer: 0, totalGames: model.totalGames + 1}),
-						$elm$core$Platform$Cmd$batch(
-							_List_fromArray(
-								[
-									$author$project$Main$playSound('deal'),
-									A2(
-									$elm$core$Task$attempt,
-									function (_v1) {
-										return $author$project$Main$NoOp;
-									},
-									$elm$browser$Browser$Dom$focus('expr-input'))
-								])));
+							$author$project$Main$generateCards(model.difficulty));
+					} else {
+						var isFirstGame = !model.totalGames;
+						var baseMsg = function () {
+							var _v2 = model.gameMode;
+							switch (_v2.$) {
+								case 'Daily':
+									return '今日挑战！用这4张牌算出24';
+								case 'TimeAttack':
+									return '计时挑战！答对+10秒，跳过-5秒';
+								default:
+									return isFirstGame ? '请用下面4张牌算出24点！' : '新的一组牌！';
+							}
+						}();
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{allSolutions: solutions, cards: cards, hintLevel: 0, hintText: '', input: '', message: baseMsg, messageType: $author$project$Main$Info, pendingNewCards: false, showAllAnswers: false, showHint: false, timer: 0, totalGames: model.totalGames + 1}),
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$playSound('deal'),
+										A2(
+										$elm$core$Task$attempt,
+										function (_v1) {
+											return $author$project$Main$NoOp;
+										},
+										$elm$browser$Browser$Dom$focus('expr-input'))
+									])));
+					}
 				}
 			case 'UpdateInput':
 				var s = msg.a;
@@ -7508,6 +7548,7 @@ var $author$project$Main$update = F2(
 						{input: s, liveResult: live}),
 					$elm$core$Platform$Cmd$none);
 			case 'SubmitAnswer':
+				var newAttempts = model.totalAttempts + 1;
 				var cardValues = A2(
 					$elm$core$List$map,
 					function (c) {
@@ -7518,7 +7559,10 @@ var $author$project$Main$update = F2(
 				if (_v3.$ === 'Ok') {
 					var result = _v3.a;
 					if ($elm$core$Basics$abs(result - 24) < 0.0001) {
-						return $author$project$Main$handleCorrect(model);
+						return $author$project$Main$handleCorrect(
+							_Utils_update(
+								model,
+								{totalAttempts: newAttempts}));
 					} else {
 						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 						var errModel = _Utils_update(
@@ -7527,7 +7571,8 @@ var $author$project$Main$update = F2(
 								history: newHistory,
 								message: '结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
 								messageType: $author$project$Main$Error,
-								streak: 0
+								streak: 0,
+								totalAttempts: newAttempts
 							});
 						return _Utils_Tuple2(
 							errModel,
@@ -7538,7 +7583,7 @@ var $author$project$Main$update = F2(
 					var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
 					var newModel = _Utils_update(
 						model,
-						{history: newHistory, message: errMsg, messageType: $author$project$Main$Error, streak: 0});
+						{history: newHistory, message: errMsg, messageType: $author$project$Main$Error, streak: 0, totalAttempts: newAttempts});
 					return _Utils_Tuple2(
 						newModel,
 						$elm$core$Platform$Cmd$batch(
@@ -7698,11 +7743,12 @@ var $author$project$Main$update = F2(
 										$author$project$Main$playSound('error')
 									])));
 					} else {
+						var newTimeLeft = model.timeLeft - 1;
 						return _Utils_Tuple2(
 							_Utils_update(
 								model,
-								{timeLeft: model.timeLeft - 1, timer: model.timer + 1, totalTime: model.totalTime + 1}),
-							$elm$core$Platform$Cmd$none);
+								{timeLeft: newTimeLeft, timer: model.timer + 1, totalTime: model.totalTime + 1}),
+							(newTimeLeft <= 10) ? $author$project$Main$playSound('tick') : $elm$core$Platform$Cmd$none);
 					}
 				} else {
 					var newTotalTime = model.totalTime + 1;
@@ -7845,6 +7891,59 @@ var $author$project$Main$update = F2(
 								$author$project$Main$generateCards(model.difficulty),
 								$author$project$Main$playSound('click')
 							])));
+			case 'CardClick':
+				var val = msg.a;
+				var newInput = _Utils_ap(
+					model.input,
+					$elm$core$String$fromInt(val));
+				var live = A2(
+					$author$project$Main$computeLiveResult,
+					newInput,
+					A2(
+						$elm$core$List$map,
+						function (c) {
+							return c.value;
+						},
+						model.cards));
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{input: newInput, liveResult: live}),
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								$author$project$Main$playSound('click'),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v12) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							])));
+			case 'BackspaceInput':
+				var tokens = $author$project$Main$tokenize(model.input);
+				var newTokens = A2(
+					$elm$core$List$take,
+					A2(
+						$elm$core$Basics$max,
+						0,
+						$elm$core$List$length(tokens) - 1),
+					tokens);
+				var newInput = A2($elm$core$String$join, '', newTokens);
+				var live = A2(
+					$author$project$Main$computeLiveResult,
+					newInput,
+					A2(
+						$elm$core$List$map,
+						function (c) {
+							return c.value;
+						},
+						model.cards));
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{input: newInput, liveResult: live}),
+					$elm$core$Platform$Cmd$none);
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
@@ -7861,7 +7960,6 @@ var $author$project$Main$CopyAnswer = function (a) {
 };
 var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$Easy = {$: 'Easy'};
-var $author$project$Main$Hard = {$: 'Hard'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$SetGameMode = function (a) {
 	return {$: 'SetGameMode', a: a};
@@ -7908,13 +8006,14 @@ var $author$project$Main$css = function (theme) {
 		_List_Nil,
 		_List_fromArray(
 			[
-				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
+				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
 			]));
 };
+var $author$project$Main$BackspaceInput = {$: 'BackspaceInput'};
 var $author$project$Main$decodeKey = function (_v0) {
 	var key = _v0.key;
 	var ctrlKey = _v0.ctrlKey;
-	return ((key === 'Enter') && ctrlKey) ? $author$project$Main$SubmitAnswer : ((key === 'Enter') ? $author$project$Main$SubmitAnswer : ((key === 'Escape') ? $author$project$Main$UpdateInput('') : $author$project$Main$NoOp));
+	return ((key === 'Enter') && ctrlKey) ? $author$project$Main$SubmitAnswer : ((key === 'Enter') ? $author$project$Main$SubmitAnswer : ((key === 'Escape') ? $author$project$Main$UpdateInput('') : ((key === 'Backspace') ? $author$project$Main$BackspaceInput : $author$project$Main$NoOp)));
 };
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $author$project$Main$formatTime = function (seconds) {
@@ -8053,6 +8152,9 @@ var $author$project$Main$viewAchievementToast = F2(
 						]))
 				]));
 	});
+var $author$project$Main$CardClick = function (a) {
+	return {$: 'CardClick', a: a};
+};
 var $author$project$Main$viewCard = F2(
 	function (card, streak) {
 		var glowClass = (streak >= 20) ? ' streak-god' : ((streak >= 10) ? ' streak-fire' : ((streak >= 3) ? ' streak-glow' : ''));
@@ -8060,7 +8162,11 @@ var $author$project$Main$viewCard = F2(
 			$elm$html$Html$div,
 			_List_fromArray(
 				[
-					$elm$html$Html$Attributes$class('card' + glowClass)
+					$elm$html$Html$Attributes$class('card' + glowClass),
+					$elm$html$Html$Events$onClick(
+					$author$project$Main$CardClick(card.value)),
+					$elm$html$Html$Attributes$title(
+					'点击输入 ' + $elm$core$String$fromInt(card.value))
 				]),
 			_List_fromArray(
 				[
@@ -8518,7 +8624,37 @@ var $author$project$Main$view = function (model) {
 										$elm$html$Html$text(
 										$author$project$Main$formatTime(model.timer))
 									]))
-							]))
+							])),
+						(model.fastestSolve > 0) ? A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('stat-box')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-label')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('最快')
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-value')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(
+										$author$project$Main$formatTime(model.fastestSolve))
+									]))
+							])) : $elm$html$Html$text('')
 					])),
 				A2(
 				$elm$html$Html$div,
@@ -8617,7 +8753,7 @@ var $author$project$Main$view = function (model) {
 								$elm$html$Html$Attributes$type_('text'),
 								$elm$html$Html$Attributes$id('expr-input'),
 								$elm$html$Html$Attributes$value(model.input),
-								$elm$html$Html$Attributes$placeholder('输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除'),
+								$elm$html$Html$Attributes$placeholder('输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除  ·  Backspace退格  ·  点击牌输入'),
 								$elm$html$Html$Events$onInput($author$project$Main$UpdateInput),
 								A2(
 								$elm$html$Html$Events$on,

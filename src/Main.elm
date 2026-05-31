@@ -64,6 +64,8 @@ type alias Model =
     , dailyDate : String
     , dailyCompleted : Bool
     , dailyBestTime : Int
+    , fastestSolve : Int
+    , totalAttempts : Int
     }
 
 type Msg
@@ -85,6 +87,8 @@ type Msg
     | ChangeTheme Theme
     | SetGameMode GameMode
     | StartTimeAttack
+    | CardClick Int
+    | BackspaceInput
     | NoOp
 
 type alias Flags =
@@ -331,6 +335,12 @@ solve24 nums =
         solutions = List.filter (\e -> abs(e.value - 24) < 0.00001) allExprs
     in List.map (\e -> simplifySolution e.expr) solutions |> unique |> List.sort
 
+hasDivision : String -> Bool
+hasDivision s = String.contains "/" s
+
+hasDivisionSolution : List String -> Bool
+hasDivisionSolution solutions = List.any hasDivision solutions
+
 
 -- ============ HINT SYSTEM ============
 
@@ -475,6 +485,8 @@ init flags =
       , dailyDate = flags.today
       , dailyCompleted = False
       , dailyBestTime = 0
+      , fastestSolve = 0
+      , totalAttempts = 0
       }
     , Cmd.batch [ generateCards Normal, loadFromStorage () ]
     )
@@ -511,6 +523,8 @@ encodeStats model =
             , ("timeAttackBest", E.int model.timeAttackBest)
             , ("dailyCompletedDate", E.string (if model.dailyCompleted then model.dailyDate else ""))
             , ("dailyBestTime", E.int model.dailyBestTime)
+            , ("fastestSolve", E.int model.fastestSolve)
+            , ("totalAttempts", E.int model.totalAttempts)
             ]
         )
 
@@ -527,38 +541,47 @@ type alias DecodedBase =
 
 decodeStats : String -> Model -> Model
 decodeStats json model =
-    let decoder =
-            D.map4
-                (\base tab dcd dbt ->
-                    { model
-                        | bestStreak = max model.bestStreak base.bestStreak
-                        , solved = model.solved + base.totalSolved
-                        , skipped = model.skipped + base.totalSkipped
-                        , totalTime = model.totalTime + base.totalTime
-                        , achievements = model.achievements ++ base.achievements
-                        , sfxEnabled = base.sfxEnabled
-                        , history = model.history ++ base.history
-                        , theme = base.theme
-                        , timeAttackBest = tab
-                        , dailyCompleted = (dcd == model.dailyDate)
-                        , dailyBestTime = dbt
-                        }
+    let baseDecoder =
+            D.map8 DecodedBase
+                (D.maybe (D.field "bestStreak" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "totalSolved" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "totalSkipped" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "totalTime" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "achievements" (D.list D.string)) |> D.map (Maybe.withDefault []))
+                (D.maybe (D.field "sfxEnabled" D.bool) |> D.map (Maybe.withDefault True))
+                (D.maybe (D.field "history" (D.list D.string)) |> D.map (Maybe.withDefault []))
+                (D.maybe (D.field "theme" themeDecoder) |> D.map (Maybe.withDefault Dark))
+        
+        fullDecoder =
+            D.andThen
+                (\base ->
+                    D.map5
+                        (\tab dcd dbt fs ta ->
+                            { model
+                                | bestStreak = max model.bestStreak base.bestStreak
+                                , solved = model.solved + base.totalSolved
+                                , skipped = model.skipped + base.totalSkipped
+                                , totalTime = model.totalTime + base.totalTime
+                                , achievements = model.achievements ++ base.achievements
+                                , sfxEnabled = base.sfxEnabled
+                                , history = model.history ++ base.history
+                                , theme = base.theme
+                                , timeAttackBest = tab
+                                , dailyCompleted = (dcd == model.dailyDate)
+                                , dailyBestTime = dbt
+                                , fastestSolve = if fs > 0 then fs else model.fastestSolve
+                                , totalAttempts = model.totalAttempts + ta
+                                }
+                        )
+                        (D.maybe (D.field "timeAttackBest" D.int) |> D.map (Maybe.withDefault 0))
+                        (D.maybe (D.field "dailyCompletedDate" D.string) |> D.map (Maybe.withDefault ""))
+                        (D.maybe (D.field "dailyBestTime" D.int) |> D.map (Maybe.withDefault 0))
+                        (D.maybe (D.field "fastestSolve" D.int) |> D.map (Maybe.withDefault 0))
+                        (D.maybe (D.field "totalAttempts" D.int) |> D.map (Maybe.withDefault 0))
                 )
-                (D.map8 DecodedBase
-                    (D.maybe (D.field "bestStreak" D.int) |> D.map (Maybe.withDefault 0))
-                    (D.maybe (D.field "totalSolved" D.int) |> D.map (Maybe.withDefault 0))
-                    (D.maybe (D.field "totalSkipped" D.int) |> D.map (Maybe.withDefault 0))
-                    (D.maybe (D.field "totalTime" D.int) |> D.map (Maybe.withDefault 0))
-                    (D.maybe (D.field "achievements" (D.list D.string)) |> D.map (Maybe.withDefault []))
-                    (D.maybe (D.field "sfxEnabled" D.bool) |> D.map (Maybe.withDefault True))
-                    (D.maybe (D.field "history" (D.list D.string)) |> D.map (Maybe.withDefault []))
-                    (D.maybe (D.field "theme" themeDecoder) |> D.map (Maybe.withDefault Dark))
-                )
-                (D.maybe (D.field "timeAttackBest" D.int) |> D.map (Maybe.withDefault 0))
-                (D.maybe (D.field "dailyCompletedDate" D.string) |> D.map (Maybe.withDefault ""))
-                (D.maybe (D.field "dailyBestTime" D.int) |> D.map (Maybe.withDefault 0))
+                baseDecoder
     in
-    case D.decodeString decoder json of
+    case D.decodeString fullDecoder json of
         Ok newModel -> newModel
         Err _ -> model
 
@@ -623,6 +646,8 @@ update msg model =
             in
             if List.isEmpty solutions then
                 ( model, generateCards model.difficulty )
+            else if model.difficulty == Hard && not (hasDivisionSolution solutions) then
+                ( model, generateCards model.difficulty )
             else
                 let isFirstGame = model.totalGames == 0
                     baseMsg = case model.gameMode of
@@ -653,17 +678,18 @@ update msg model =
 
         SubmitAnswer ->
             let cardValues = List.map (\c -> toFloat c.value) model.cards
+                newAttempts = model.totalAttempts + 1
             in case parseAndValidate model.input cardValues of
                 Ok result ->
                     if abs(result - 24) < 0.0001 then
-                        handleCorrect model
+                        handleCorrect { model | totalAttempts = newAttempts }
                     else
                         let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
-                            errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = newHistory }
+                            errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
                         in ( errModel, playSound "error" )
                 Err errMsg ->
                     let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
-                        newModel = { model | message = errMsg, messageType = Error, streak = 0, history = newHistory }
+                        newModel = { model | message = errMsg, messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
                     in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error" ] )
 
         ShowHint ->
@@ -743,7 +769,11 @@ update msg model =
                         in
                         ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error" ] )
                     else
-                        ( { model | timeLeft = model.timeLeft - 1, timer = model.timer + 1, totalTime = model.totalTime + 1 }, Cmd.none )
+                        let newTimeLeft = model.timeLeft - 1
+                        in
+                        ( { model | timeLeft = newTimeLeft, timer = model.timer + 1, totalTime = model.totalTime + 1 }
+                        , if newTimeLeft <= 10 then playSound "tick" else Cmd.none
+                        )
                 _ ->
                     let newTimer = model.timer + 1
                         newTotalTime = model.totalTime + 1
@@ -814,11 +844,25 @@ update msg model =
             let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
             in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
 
+        CardClick val ->
+            let newInput = model.input ++ String.fromInt val
+                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+            in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "click", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
+
+        BackspaceInput ->
+            let tokens = tokenize model.input
+                newTokens = List.take (max 0 (List.length tokens - 1)) tokens
+                newInput = String.join "" newTokens
+                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+            in ( { model | input = newInput, liveResult = live }, Cmd.none )
+
         NoOp -> (model, Cmd.none )
 
 
 handleCorrect : Model -> (Model, Cmd Msg)
 handleCorrect model =
+    let newFastest = if model.timer > 0 && (model.fastestSolve == 0 || model.timer < model.fastestSolve) then model.timer else model.fastestSolve
+    in
     case model.gameMode of
         TimeAttack ->
             let newScore = model.timeAttackScore + 1
@@ -839,6 +883,7 @@ handleCorrect model =
                     , timeLeft = newTimeLeft
                     , timeAttackScore = newScore
                     , pendingNewCards = True
+                    , fastestSolve = newFastest
                     }
                 sfx =
                     if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5) ]
@@ -873,6 +918,7 @@ handleCorrect model =
                     , dailyCompleted = newDailyCompleted
                     , dailyBestTime = newDailyBestTime
                     , pendingNewCards = True
+                    , fastestSolve = newFastest
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -903,6 +949,7 @@ handleCorrect model =
                     , achievementTimer = if hasNewAch then 5 else 0
                     , history = newHistory
                     , pendingNewCards = True
+                    , fastestSolve = newFastest
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -919,7 +966,7 @@ difficultyName diff =
     case diff of
         Easy -> "初级（1-10）"
         Normal -> "中级（1-13）"
-        Hard -> "高级（1-13）"
+        Hard -> "高级（必须用除法）"
 
 gameModeName : GameMode -> String
 gameModeName mode =
@@ -963,6 +1010,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }
 .container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }
 .container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }
+.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }
 
 .header { text-align: center; margin-bottom: 24px; position: relative; }
 .header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }
@@ -1189,7 +1237,7 @@ viewCard card streak =
             else if streak >= 3 then " streak-glow"
             else ""
     in
-    div [ class ("card" ++ glowClass) ]
+    div [ class ("card" ++ glowClass), onClick (CardClick card.value), title ("点击输入 " ++ String.fromInt card.value) ]
         [ div [ class "card-corner-top" ]
             [ span [ style "color" card.color, style "font-size" "1.1em", style "font-weight" "800" ] [ text card.display ]
             , span [ style "color" card.color, style "font-size" "0.85em" ] [ text card.suit ]
@@ -1219,6 +1267,7 @@ decodeKey { key, ctrlKey } =
     if key == "Enter" && ctrlKey then SubmitAnswer
     else if key == "Enter" then SubmitAnswer
     else if key == "Escape" then UpdateInput ""
+    else if key == "Backspace" then BackspaceInput
     else NoOp
 
 viewTimeAttackBar : Int -> Html Msg
@@ -1301,6 +1350,13 @@ view model =
                 [ div [ class "stat-label" ] [ text "用时" ]
                 , div [ class "stat-value" ] [ text (formatTime model.timer) ]
                 ]
+            , if model.fastestSolve > 0 then
+                div [ class "stat-box" ]
+                    [ div [ class "stat-label" ] [ text "最快" ]
+                    , div [ class "stat-value" ] [ text (formatTime model.fastestSolve) ]
+                    ]
+              else
+                text ""
             ]
         , div [ class "cards-area" ] (List.map (\c -> viewCard c model.streak) model.cards)
         , div [ class (msgClass model.messageType) ] [ text model.message ]
@@ -1322,7 +1378,7 @@ view model =
                 , type_ "text"
                 , id "expr-input"
                 , value model.input
-                , placeholder "输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除"
+                , placeholder "输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除  ·  Backspace退格  ·  点击牌输入"
                 , onInput UpdateInput
                 , on "keydown" (D.map decodeKey keyDecoder)
                 ]
