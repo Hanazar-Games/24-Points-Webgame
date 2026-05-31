@@ -5533,7 +5533,7 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	});
 var $author$project$Main$init = function (_v0) {
 	return _Utils_Tuple2(
-		{achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', history: _List_Nil, input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, sfxEnabled: true, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
@@ -5541,6 +5541,7 @@ var $author$project$Main$init = function (_v0) {
 					$author$project$Main$loadFromStorage(_Utils_Tuple0)
 				])));
 };
+var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$StorageLoaded = function (a) {
 	return {$: 'StorageLoaded', a: a};
 };
@@ -5947,16 +5948,32 @@ var $elm$time$Time$every = F2(
 		return $elm$time$Time$subscription(
 			A2($elm$time$Time$Every, interval, tagger));
 	});
+var $elm$core$List$isEmpty = function (xs) {
+	if (!xs.b) {
+		return true;
+	} else {
+		return false;
+	}
+};
+var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
+var $elm$core$Basics$not = _Basics_not;
 var $elm$json$Json$Decode$string = _Json_decodeString;
 var $author$project$Main$receiveFromStorage = _Platform_incomingPort('receiveFromStorage', $elm$json$Json$Decode$string);
-var $author$project$Main$subscriptions = function (_v0) {
+var $author$project$Main$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
 			[
 				A2($elm$time$Time$every, 1000, $author$project$Main$Tick),
-				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded)
+				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded),
+				(!$elm$core$List$isEmpty(model.newAchievements)) ? A2(
+				$elm$time$Time$every,
+				4000,
+				function (_v0) {
+					return $author$project$Main$DismissAchievements;
+				}) : $elm$core$Platform$Sub$none
 			]));
 };
+var $author$project$Main$DelayedNewCards = {$: 'DelayedNewCards'};
 var $author$project$Main$Error = {$: 'Error'};
 var $author$project$Main$Success = {$: 'Success'};
 var $elm$core$Basics$abs = function (n) {
@@ -6037,13 +6054,6 @@ var $author$project$Main$fmt = function (n) {
 		n,
 		$elm$core$Basics$round(n)) ? $elm$core$String$fromInt(
 		$elm$core$Basics$round(n)) : $elm$core$String$fromFloat(n);
-};
-var $elm$core$List$isEmpty = function (xs) {
-	if (!xs.b) {
-		return true;
-	} else {
-		return false;
-	}
 };
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$core$Maybe$andThen = F2(
@@ -6172,7 +6182,6 @@ var $author$project$Main$matchCards = F2(
 			$elm$core$List$sort(
 				A2($elm$core$List$map, round3, actual)));
 	});
-var $elm$core$Basics$not = _Basics_not;
 var $author$project$Main$AddE = F2(
 	function (a, b) {
 		return {$: 'AddE', a: a, b: b};
@@ -6481,6 +6490,9 @@ var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
 		$author$project$Main$encodeStats(model));
 };
+var $elm$json$Json$Encode$bool = _Json_wrap;
+var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
+var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$Add = {$: 'Add'};
 var $author$project$Main$Div = {$: 'Div'};
 var $author$project$Main$Mul = {$: 'Mul'};
@@ -6919,6 +6931,7 @@ var $author$project$Main$update = F2(
 						var errModel = _Utils_update(
 							model,
 							{
+								history: A2($elm$core$List$cons, model.input, model.history),
 								message: '❌ 结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
 								messageType: $author$project$Main$Error,
 								streak: 0
@@ -6929,7 +6942,12 @@ var $author$project$Main$update = F2(
 					var errMsg = _v1.a;
 					var newModel = _Utils_update(
 						model,
-						{message: '❌ ' + errMsg, messageType: $author$project$Main$Error, streak: 0});
+						{
+							history: A2($elm$core$List$cons, model.input, model.history),
+							message: '❌ ' + errMsg,
+							messageType: $author$project$Main$Error,
+							streak: 0
+						});
 					return _Utils_Tuple2(
 						newModel,
 						$elm$core$Platform$Cmd$batch(
@@ -6995,38 +7013,58 @@ var $author$project$Main$update = F2(
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
 							[
-								$author$project$Main$generateCards,
+								A2(
+								$elm$core$Task$perform,
+								function (_v3) {
+									return $author$project$Main$DelayedNewCards;
+								},
+								$elm$core$Process$sleep(1500)),
 								$author$project$Main$saveCmd(newModel),
 								$author$project$Main$playSound('click')
 							])));
 			case 'Tick':
-				var newModel = _Utils_update(
-					model,
-					{timer: model.timer + 1, totalTime: model.totalTime + 1});
 				return _Utils_Tuple2(
-					newModel,
-					$author$project$Main$saveCmd(newModel));
+					_Utils_update(
+						model,
+						{timer: model.timer + 1, totalTime: model.totalTime + 1}),
+					$elm$core$Platform$Cmd$none);
 			case 'StorageLoaded':
 				var json = msg.a;
 				var newModel = A2($author$project$Main$decodeStats, json, model);
 				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
+			case 'DelayedNewCards':
+				return _Utils_Tuple2(model, $author$project$Main$generateCards);
 			case 'DismissAchievements':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{newAchievements: _List_Nil}),
 					$elm$core$Platform$Cmd$none);
+			case 'ToggleSFX':
+				var newModel = _Utils_update(
+					model,
+					{sfxEnabled: !model.sfxEnabled});
+				return _Utils_Tuple2(
+					newModel,
+					$author$project$Main$setSFX(newModel.sfxEnabled));
+			case 'ClearHistory':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{history: _List_Nil}),
+					$elm$core$Platform$Cmd$none);
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
 	});
-var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
+var $author$project$Main$ClearHistory = {$: 'ClearHistory'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$NoOp = {$: 'NoOp'};
 var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
 var $author$project$Main$ShowHint = {$: 'ShowHint'};
 var $author$project$Main$Skip = {$: 'Skip'};
 var $author$project$Main$SubmitAnswer = {$: 'SubmitAnswer'};
+var $author$project$Main$ToggleSFX = {$: 'ToggleSFX'};
 var $author$project$Main$UpdateInput = function (a) {
 	return {$: 'UpdateInput', a: a};
 };
@@ -7055,7 +7093,7 @@ var $author$project$Main$css = A3(
 	_List_Nil,
 	_List_fromArray(
 		[
-			$elm$html$Html$text('\n@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap\');\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
+			$elm$html$Html$text('\n@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap\');\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }\n.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.history-clear:hover { background: rgba(233,69,96,0.15); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
 		]));
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$core$Basics$modBy = _Basics_modBy;
@@ -7291,6 +7329,18 @@ var $author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								$elm$html$Html$text('用加减乘除和括号，让四张牌算出 24')
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('sfx-toggle'),
+								$elm$html$Html$Events$onClick($author$project$Main$ToggleSFX)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								model.sfxEnabled ? '🔊 音效开' : '🔇 音效关')
 							]))
 					])),
 				A2(
@@ -7589,6 +7639,68 @@ var $author$project$Main$view = function (model) {
 								$elm$html$Html$text('🔄 新局')
 							]))
 					])),
+				(!$elm$core$List$isEmpty(model.history)) ? A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('history-panel')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('history-header')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$span,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('history-title')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('📝 尝试记录')
+									])),
+								A2(
+								$elm$html$Html$button,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('history-clear'),
+										$elm$html$Html$Events$onClick($author$project$Main$ClearHistory)
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('清除')
+									]))
+							])),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('history-list')
+							]),
+						A2(
+							$elm$core$List$indexedMap,
+							F2(
+								function (i, h) {
+									return A2(
+										$elm$html$Html$div,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('history-item')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text(
+												$elm$core$String$fromInt(i + 1) + ('. ' + h))
+											]));
+								}),
+							A2($elm$core$List$take, 8, model.history)))
+					])) : $elm$html$Html$text(''),
 				(model.showAllAnswers && (!$elm$core$List$isEmpty(model.allSolutions))) ? A2(
 				$elm$html$Html$div,
 				_List_fromArray(

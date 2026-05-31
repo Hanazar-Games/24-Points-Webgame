@@ -7,6 +7,7 @@ import Html.Attributes exposing (class, value, style, placeholder, type_, src, r
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
 import Json.Encode as E
+import Process
 import Random
 import Task
 import Time
@@ -41,6 +42,8 @@ type alias Model =
     , totalTime : Int
     , achievements : List String
     , newAchievements : List String
+    , history : List String
+    , sfxEnabled : Bool
     }
 
 type Msg
@@ -53,7 +56,10 @@ type Msg
     | Skip
     | Tick Time.Posix
     | StorageLoaded String
+    | DelayedNewCards
     | DismissAchievements
+    | ToggleSFX
+    | ClearHistory
     | NoOp
 
 
@@ -64,6 +70,7 @@ port loadFromStorage : () -> Cmd msg
 port receiveFromStorage : (String -> msg) -> Sub msg
 port playSound : String -> Cmd msg
 port spawnParticles : Int -> Cmd msg
+port setSFX : Bool -> Cmd msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -342,6 +349,8 @@ init _ =
       , totalTime = 0
       , achievements = []
       , newAchievements = []
+      , history = []
+      , sfxEnabled = True
       }
     , Cmd.batch [ generateCards, loadFromStorage () ]
     )
@@ -448,10 +457,10 @@ update msg model =
                         in
                         ( newModel, Cmd.batch [ generateCards, saveCmd newModel ] )
                     else
-                        let errModel = { model | message = "❌ 结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0 }
+                        let errModel = { model | message = "❌ 结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = model.input :: model.history }
                         in ( errModel, Cmd.none )
                 Err errMsg ->
-                    let newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0 }
+                    let newModel = { model | message = "❌ " ++ errMsg, messageType = Error, streak = 0, history = model.input :: model.history }
                     in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error" ] )
 
         ShowHint ->
@@ -479,27 +488,40 @@ update msg model =
                         , showAllAnswers = True
                     }
             in
-            ( newModel, Cmd.batch [ generateCards, saveCmd newModel, playSound "click" ] )
+            ( newModel, Cmd.batch [ Task.perform (\_ -> DelayedNewCards) (Process.sleep 1500), saveCmd newModel, playSound "click" ] )
 
         Tick _ ->
-            let newModel = { model | timer = model.timer + 1, totalTime = model.totalTime + 1 }
-            in ( newModel, saveCmd newModel )
+            ( { model | timer = model.timer + 1, totalTime = model.totalTime + 1 }, Cmd.none )
 
         StorageLoaded json ->
             let newModel = decodeStats json model
             in ( newModel, Cmd.none )
 
+        DelayedNewCards ->
+            ( model, generateCards )
+
         DismissAchievements ->
             ( { model | newAchievements = [] }, Cmd.none )
 
-        NoOp -> (model, Cmd.none)
+        ToggleSFX ->
+            let newModel = { model | sfxEnabled = not model.sfxEnabled }
+            in ( newModel, setSFX newModel.sfxEnabled )
+
+        ClearHistory ->
+            ( { model | history = [] }, Cmd.none )
+
+        NoOp -> (model, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
+subscriptions model =
     Sub.batch
         [ Time.every 1000 Tick
         , receiveFromStorage StorageLoaded
+        , if not (List.isEmpty model.newAchievements) then
+            Time.every 4000 (\_ -> DismissAchievements)
+          else
+            Sub.none
         ]
 
 
@@ -585,8 +607,17 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: radi
 .answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
 .answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }
 .answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }
+.sfx-toggle { position: absolute; top: 0; right: 0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: #ccd6f6; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }
+.sfx-toggle:hover { background: rgba(255,255,255,0.15); transform: scale(1.05); }
+.history-panel { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 14px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.06); }
+.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.history-title { font-size: 0.8em; color: #8892b0; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.history-clear { background: none; border: none; color: #e94560; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }
+.history-clear:hover { background: rgba(233,69,96,0.15); }
+.history-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.history-item { background: rgba(0,0,0,0.2); padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; color: #8892b0; border: 1px solid rgba(255,255,255,0.05); }
 .footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }
-@media (max-width: 600px) { .header h1 { font-size: 2em; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }
+@media (max-width: 600px) { .header h1 { font-size: 2em; } .header { position: relative; } .sfx-toggle { position: relative; top: auto; right: auto; margin-top: 8px; display: inline-block; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }
         """ ]
 
 formatTime : Int -> String
@@ -638,6 +669,8 @@ view model =
         , div [ class "header" ]
             [ h1 [] [ text "24点挑战" ]
             , p [] [ text "用加减乘除和括号，让四张牌算出 24" ]
+            , button [ class "sfx-toggle", onClick ToggleSFX ]
+                [ text (if model.sfxEnabled then "🔊 音效开" else "🔇 音效关") ]
             ]
         , div [ class "stats" ]
             [ div [ class "stat-box" ]
@@ -686,6 +719,17 @@ view model =
             , button [ class "btn btn-secondary", onClick Skip ] [ text "⏭ 跳过" ]
             , button [ class "btn btn-secondary", onClick NewGame ] [ text "🔄 新局" ]
             ]
+        , if not (List.isEmpty model.history) then
+            div [ class "history-panel" ]
+                [ div [ class "history-header" ]
+                    [ span [ class "history-title" ] [ text "📝 尝试记录" ]
+                    , button [ class "history-clear", onClick ClearHistory ] [ text "清除" ]
+                    ]
+                , div [ class "history-list" ]
+                    (List.indexedMap (\i h -> div [ class "history-item" ] [ text (String.fromInt (i + 1) ++ ". " ++ h) ]) (List.take 8 model.history))
+                ]
+          else
+            text ""
         , if model.showAllAnswers && not (List.isEmpty model.allSolutions) then
             div [ class "all-answers" ]
                 [ div [ class "all-answers-title" ] [ text ("全部解法 (" ++ String.fromInt (List.length model.allSolutions) ++ " 个)") ]
