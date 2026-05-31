@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>24点挑战 v0.3.2</title>
+  <title>24点挑战 v0.4.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.3.2">
+  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.0">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +26,8 @@
   <script src="main.js"></script>
   <script>
     (function() {
-      var app = Elm.Main.init({ node: document.getElementById("elm") });
+      var today = new Date().toISOString().split('T')[0];
+      var app = Elm.Main.init({ node: document.getElementById("elm"), flags: { today: today } });
       var audioCtx = null;
       var sfxEnabled = true;
 
