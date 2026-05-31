@@ -78,6 +78,8 @@ type alias Model =
     , showSteps : Bool
     , stepByStep : List SolveStep
     , timeAttackHistory : List Int
+    , inputHint : String
+    , dailyHistory : List String
     }
 
 type alias SkippedProblem =
@@ -647,6 +649,8 @@ init flags =
             , showSteps = False
             , stepByStep = []
             , timeAttackHistory = []
+            , inputHint = ""
+            , dailyHistory = []
             }
     in
     case parseHashCards flags.hash of
@@ -709,6 +713,17 @@ type alias DecodedBase =
     , theme : Theme
     }
 
+type alias ExtraData =
+    { timeAttackBest : Int
+    , dailyCompletedDate : String
+    , dailyBestTime : Int
+    , fastestSolve : Int
+    , totalAttempts : Int
+    , keypadEnabled : Bool
+    , sharedCount : Int
+    , stepsWithKeypad : Int
+    }
+
 decodeStats : String -> Model -> Model
 decodeStats json model =
     let baseDecoder =
@@ -722,40 +737,47 @@ decodeStats json model =
                 (D.maybe (D.field "history" (D.list D.string)) |> D.map (Maybe.withDefault []))
                 (D.maybe (D.field "theme" themeDecoder) |> D.map (Maybe.withDefault Dark))
         
+        extraDecoder =
+            D.map8 ExtraData
+                (D.maybe (D.field "timeAttackBest" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "dailyCompletedDate" D.string) |> D.map (Maybe.withDefault ""))
+                (D.maybe (D.field "dailyBestTime" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "fastestSolve" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "totalAttempts" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "keypadEnabled" D.bool) |> D.map (Maybe.withDefault True))
+                (D.maybe (D.field "sharedCount" D.int) |> D.map (Maybe.withDefault 0))
+                (D.maybe (D.field "stepsWithKeypad" D.int) |> D.map (Maybe.withDefault 0))
+        
         fullDecoder =
-            D.andThen
-                (\base ->
-                    D.map8
-                        (\tab dcd dbt fs ta kb sc swk ->
-                            { model
-                                | bestStreak = max model.bestStreak base.bestStreak
-                                , solved = model.solved + base.totalSolved
-                                , skipped = model.skipped + base.totalSkipped
-                                , totalTime = model.totalTime + base.totalTime
-                                , achievements = model.achievements ++ base.achievements
-                                , sfxEnabled = base.sfxEnabled
-                                , history = model.history ++ base.history
-                                , theme = base.theme
-                                , timeAttackBest = tab
-                                , dailyCompleted = (dcd == model.dailyDate)
-                                , dailyBestTime = dbt
-                                , fastestSolve = if fs > 0 then fs else model.fastestSolve
-                                , totalAttempts = model.totalAttempts + ta
-                                , keypadEnabled = kb
-                                , sharedCount = sc
-                                , stepsWithKeypad = swk
-                                }
-                        )
-                        (D.maybe (D.field "timeAttackBest" D.int) |> D.map (Maybe.withDefault 0))
-                        (D.maybe (D.field "dailyCompletedDate" D.string) |> D.map (Maybe.withDefault ""))
-                        (D.maybe (D.field "dailyBestTime" D.int) |> D.map (Maybe.withDefault 0))
-                        (D.maybe (D.field "fastestSolve" D.int) |> D.map (Maybe.withDefault 0))
-                        (D.maybe (D.field "totalAttempts" D.int) |> D.map (Maybe.withDefault 0))
-                        (D.maybe (D.field "keypadEnabled" D.bool) |> D.map (Maybe.withDefault True))
-                        (D.maybe (D.field "sharedCount" D.int) |> D.map (Maybe.withDefault 0))
-                        (D.maybe (D.field "stepsWithKeypad" D.int) |> D.map (Maybe.withDefault 0))
+            D.map3
+                (\base extra (tah, dh) ->
+                    { model
+                        | bestStreak = max model.bestStreak base.bestStreak
+                        , solved = model.solved + base.totalSolved
+                        , skipped = model.skipped + base.totalSkipped
+                        , totalTime = model.totalTime + base.totalTime
+                        , achievements = model.achievements ++ base.achievements
+                        , sfxEnabled = base.sfxEnabled
+                        , history = model.history ++ base.history
+                        , theme = base.theme
+                        , timeAttackBest = extra.timeAttackBest
+                        , dailyCompleted = (extra.dailyCompletedDate == model.dailyDate)
+                        , dailyBestTime = extra.dailyBestTime
+                        , fastestSolve = if extra.fastestSolve > 0 then extra.fastestSolve else model.fastestSolve
+                        , totalAttempts = model.totalAttempts + extra.totalAttempts
+                        , keypadEnabled = extra.keypadEnabled
+                        , sharedCount = extra.sharedCount
+                        , stepsWithKeypad = extra.stepsWithKeypad
+                        , timeAttackHistory = tah
+                        , dailyHistory = dh
+                        }
                 )
                 baseDecoder
+                extraDecoder
+                (D.map2 Tuple.pair
+                    (D.maybe (D.field "timeAttackHistory" (D.list D.int)) |> D.map (Maybe.withDefault []))
+                    (D.maybe (D.field "dailyHistory" (D.list D.string)) |> D.map (Maybe.withDefault []))
+                )
     in
     case D.decodeString fullDecoder json of
         Ok newModel -> newModel
@@ -785,9 +807,26 @@ checkAchievements model =
             , ("火神", model.streak >= 20)
             , ("键盘侠", model.stepsWithKeypad >= 10)
             , ("分享达人", model.sharedCount >= 3)
-            , ("步步为营", model.solved >= 1)  -- 在handleCorrect中根据步数判断
+            , ("步步为营", model.solved >= 1)
             ]
     in List.filterMap (\(name, cond) -> if cond && not (List.member name model.achievements) then Just name else Nothing) all
+
+achievementProgress : String -> Model -> String
+achievementProgress name model =
+    case name of
+        "首杀" -> String.fromInt model.solved ++ "/1"
+        "三连冠" -> String.fromInt model.streak ++ "/3"
+        "五连冠" -> String.fromInt model.streak ++ "/5"
+        "十连冠" -> String.fromInt model.streak ++ "/10"
+        "速算大师" -> "≤10秒"
+        "百题斩" -> String.fromInt model.solved ++ "/100"
+        "每日首胜" -> if model.dailyCompleted then "已完成" else "未完成"
+        "极速60秒" -> String.fromInt model.timeAttackBest ++ "/5"
+        "火神" -> String.fromInt model.streak ++ "/20"
+        "键盘侠" -> String.fromInt model.stepsWithKeypad ++ "/10"
+        "分享达人" -> String.fromInt model.sharedCount ++ "/3"
+        "步步为营" -> "恰好3步"
+        _ -> ""
 
 addToHistory : String -> List String -> List String
 addToHistory input hist =
@@ -882,7 +921,9 @@ update msg model =
         UpdateInput s ->
             let live = computeLiveResult s (List.map (\c -> toFloat c.value) model.cards)
                 bracketHint = checkBrackets s
-            in ( { model | input = s, liveResult = live, message = bracketHint, messageType = if String.isEmpty bracketHint then model.messageType else Info }, Cmd.none )
+                usedHint = computeUsedNumsHint s (List.map (\c -> toFloat c.value) model.cards)
+                combinedHint = if String.isEmpty bracketHint then usedHint else bracketHint ++ (if String.isEmpty usedHint then "" else " | " ++ usedHint)
+            in ( { model | input = s, liveResult = live, inputHint = combinedHint }, Cmd.none )
 
         SubmitAnswer ->
             let cardValues = List.map (\c -> toFloat c.value) model.cards
@@ -1189,6 +1230,7 @@ handleCorrect model =
                 isFirstDaily = not model.dailyCompleted
                 newDailyCompleted = True
                 newDailyBestTime = if model.dailyBestTime == 0 || model.timer < model.dailyBestTime then model.timer else model.dailyBestTime
+                newDailyHistory = if isFirstDaily then model.dailyDate :: model.dailyHistory else model.dailyHistory
                 newAch = checkAchievements { model | streak = newStreak, solved = newSolved, dailyCompleted = True, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
                 hasNewAch = not (List.isEmpty newAch)
                 newHistory = addToHistory model.input model.history
@@ -1212,6 +1254,7 @@ handleCorrect model =
                     , stepsWithKeypad = newStepsWithKeypad
                     , comboDisplay = Just newStreak
                     , shieldActive = newShield
+                    , dailyHistory = newDailyHistory
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
@@ -1408,6 +1451,14 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }
 .container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }
 .ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }
+
+.daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }
+.container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }
+.container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }
+.daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }
+.daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+.daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }
+.daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }
 
 .rules { border-radius: 14px; padding: 20px; margin-top: 24px; }
 .container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
@@ -1778,8 +1829,7 @@ view model =
             text ""
           else
             div [ class (if String.contains "= 24" model.liveResult then "live-result valid" else "live-result") ] [ text model.liveResult ]
-        , let usedHint = computeUsedNumsHint model.input (List.map (\c -> toFloat c.value) model.cards)
-          in if String.isEmpty usedHint then text "" else div [ class "used-hint" ] [ text usedHint ]
+        , if String.isEmpty model.inputHint then text "" else div [ class "used-hint" ] [ text model.inputHint ]
 
         , div [ class "buttons-row" ]
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "提交" ]
@@ -1851,9 +1901,23 @@ view model =
             [ h4 [] [ text "成就墙" ]
             , div []
                 (List.map (\a ->
-                    span [ class (if List.member a model.achievements then "ach-badge unlocked" else "ach-badge") ] [ text a ]
+                    let isUnlocked = List.member a model.achievements
+                        progress = if isUnlocked then "" else achievementProgress a model
+                        label = if isUnlocked then a else a ++ " " ++ progress
+                    in
+                    span [ class (if isUnlocked then "ach-badge unlocked" else "ach-badge"), title (if isUnlocked then "已解锁" else "进度: " ++ progress) ] [ text label ]
                 ) allAchievements)
             ]
+        , if not (List.isEmpty model.dailyHistory) then
+            div [ class "daily-streak" ]
+                [ div [ class "daily-streak-title" ] [ text "连续打卡" ]
+                , div [ class "daily-streak-days" ]
+                    [ span [ class "daily-streak-num" ] [ text (String.fromInt (List.length model.dailyHistory)) ]
+                    , span [ class "daily-streak-unit" ] [ text "天" ]
+                    ]
+                ]
+          else
+            text ""
         , if not (List.isEmpty model.skippedProblems) then
             div [ class "skipped-panel" ]
                 [ div [ class "skipped-header", onClick ToggleSkippedProblems ]
