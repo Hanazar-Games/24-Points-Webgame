@@ -5533,7 +5533,7 @@ var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
 	});
 var $author$project$Main$init = function (_v0) {
 	return _Utils_Tuple2(
-		{allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
+		{achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, hintText: '', input: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, showHint: false, skipped: 0, solved: 0, streak: 0, timer: 0, totalGames: 0, totalTime: 0},
 		$elm$core$Platform$Cmd$batch(
 			_List_fromArray(
 				[
@@ -5965,7 +5965,8 @@ var $elm$core$Basics$abs = function (n) {
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$field = _Json_decodeField;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
-var $elm$json$Json$Decode$map4 = _Json_map4;
+var $elm$json$Json$Decode$list = _Json_decodeList;
+var $elm$json$Json$Decode$map5 = _Json_map5;
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
@@ -5979,13 +5980,14 @@ var $author$project$Main$decodeStats = F2(
 	function (json, model) {
 		var _v0 = A2(
 			$elm$json$Json$Decode$decodeString,
-			A5(
-				$elm$json$Json$Decode$map4,
-				F4(
-					function (bs, tsD, tsk, tt) {
+			A6(
+				$elm$json$Json$Decode$map5,
+				F5(
+					function (bs, tsD, tsk, tt, ach) {
 						return _Utils_update(
 							model,
 							{
+								achievements: _Utils_ap(model.achievements, ach),
 								bestStreak: A2($elm$core$Basics$max, model.bestStreak, bs),
 								skipped: model.skipped + tsk,
 								solved: model.solved + tsD,
@@ -6011,7 +6013,15 @@ var $author$project$Main$decodeStats = F2(
 					$elm$json$Json$Decode$map,
 					$elm$core$Maybe$withDefault(0),
 					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int)))),
+						A2($elm$json$Json$Decode$field, 'totalTime', $elm$json$Json$Decode$int))),
+				A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$Maybe$withDefault(_List_Nil),
+					$elm$json$Json$Decode$maybe(
+						A2(
+							$elm$json$Json$Decode$field,
+							'achievements',
+							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))),
 			json);
 		if (_v0.$ === 'Ok') {
 			var newModel = _v0.a;
@@ -6324,7 +6334,7 @@ var $elm$core$String$toList = function (string) {
 	return A3($elm$core$String$foldr, $elm$core$List$cons, _List_Nil, string);
 };
 var $elm$core$String$fromList = _String_fromList;
-var $author$project$Main$span = F2(
+var $author$project$Main$spanList = F2(
 	function (p, list) {
 		if (!list.b) {
 			return _Utils_Tuple2(_List_Nil, _List_Nil);
@@ -6332,7 +6342,7 @@ var $author$project$Main$span = F2(
 			var x = list.a;
 			var xs = list.b;
 			if (p(x)) {
-				var _v1 = A2($author$project$Main$span, p, xs);
+				var _v1 = A2($author$project$Main$spanList, p, xs);
 				var ys = _v1.a;
 				var zs = _v1.b;
 				return _Utils_Tuple2(
@@ -6354,7 +6364,7 @@ var $author$project$Main$tokenizeHelp = F2(
 				var rest = chars.b;
 				if ($elm$core$Char$isDigit(c)) {
 					var _v1 = A2(
-						$author$project$Main$span,
+						$author$project$Main$spanList,
 						$elm$core$Char$isDigit,
 						A2($elm$core$List$cons, c, rest));
 					var digits = _v1.a;
@@ -6417,7 +6427,18 @@ var $author$project$Main$parseAndValidate = F2(
 			}
 		}
 	});
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
 var $elm$json$Json$Encode$int = _Json_wrap;
+var $elm$json$Json$Encode$list = F2(
+	function (func, entries) {
+		return _Json_wrap(
+			A3(
+				$elm$core$List$foldl,
+				_Json_addEntry(func),
+				_Json_emptyArray(_Utils_Tuple0),
+				entries));
+	});
 var $elm$json$Json$Encode$object = function (pairs) {
 	return _Json_wrap(
 		A3(
@@ -6449,10 +6470,12 @@ var $author$project$Main$encodeStats = function (model) {
 					$elm$json$Json$Encode$int(model.skipped)),
 					_Utils_Tuple2(
 					'totalTime',
-					$elm$json$Json$Encode$int(model.totalTime))
+					$elm$json$Json$Encode$int(model.totalTime)),
+					_Utils_Tuple2(
+					'achievements',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements))
 				])));
 };
-var $elm$json$Json$Encode$string = _Json_wrap;
 var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
 var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
@@ -6909,7 +6932,12 @@ var $author$project$Main$update = F2(
 						{message: '❌ ' + errMsg, messageType: $author$project$Main$Error, streak: 0});
 					return _Utils_Tuple2(
 						newModel,
-						$author$project$Main$saveCmd(newModel));
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$saveCmd(newModel),
+									$author$project$Main$playSound('error')
+								])));
 				}
 			case 'ShowHint':
 				var _v2 = model.allSolutions;
@@ -6918,14 +6946,14 @@ var $author$project$Main$update = F2(
 						_Utils_update(
 							model,
 							{message: '💡 这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
-						$elm$core$Platform$Cmd$none);
+						$author$project$Main$playSound('click'));
 				} else {
 					var first = _v2.a;
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{hintText: first, message: '💡 提示已显示', messageType: $author$project$Main$Info, showHint: true}),
-						$elm$core$Platform$Cmd$none);
+						$author$project$Main$playSound('click'));
 				}
 			case 'ShowAllAnswers':
 				return _Utils_Tuple2(
@@ -6937,13 +6965,18 @@ var $author$project$Main$update = F2(
 							messageType: $author$project$Main$Info,
 							showAllAnswers: true
 						}),
-					$elm$core$Platform$Cmd$none);
+					$author$project$Main$playSound('click'));
 			case 'NewGame':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{message: '新游戏开始！', messageType: $author$project$Main$Info, showAllAnswers: false, streak: 0, timer: 0}),
-					$author$project$Main$generateCards);
+						{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, streak: 0, timer: 0}),
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								$author$project$Main$generateCards,
+								$author$project$Main$playSound('click')
+							])));
 			case 'Skip':
 				var newModel = _Utils_update(
 					model,
@@ -6963,7 +6996,8 @@ var $author$project$Main$update = F2(
 						_List_fromArray(
 							[
 								$author$project$Main$generateCards,
-								$author$project$Main$saveCmd(newModel)
+								$author$project$Main$saveCmd(newModel),
+								$author$project$Main$playSound('click')
 							])));
 			case 'Tick':
 				var newModel = _Utils_update(
@@ -6976,10 +7010,17 @@ var $author$project$Main$update = F2(
 				var json = msg.a;
 				var newModel = A2($author$project$Main$decodeStats, json, model);
 				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
+			case 'DismissAchievements':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{newAchievements: _List_Nil}),
+					$elm$core$Platform$Cmd$none);
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
 	});
+var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$NoOp = {$: 'NoOp'};
 var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
@@ -6989,6 +7030,8 @@ var $author$project$Main$SubmitAnswer = {$: 'SubmitAnswer'};
 var $author$project$Main$UpdateInput = function (a) {
 	return {$: 'UpdateInput', a: a};
 };
+var $author$project$Main$allAchievements = _List_fromArray(
+	['首杀', '三连冠', '五连冠', '十连冠', '速算大师', '百题斩']);
 var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -7012,7 +7055,7 @@ var $author$project$Main$css = A3(
 	_List_Nil,
 	_List_fromArray(
 		[
-			$elm$html$Html$text('\nbody { font-family: \'Segoe UI\', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 800px; margin: 0 auto; padding: 20px; }\n.header { text-align: center; margin-bottom: 30px; }\n.header h1 { font-size: 3em; margin: 0; background: linear-gradient(90deg, #e94560, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-shadow: 0 0 30px rgba(233,69,96,0.3); }\n.header p { color: #a0a0a0; margin-top: 8px; font-size: 1.1em; }\n.stats { display: flex; justify-content: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 24px; text-align: center; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }\n.stat-label { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 1px; }\n.stat-value { font-size: 1.5em; font-weight: bold; color: #e94560; }\n.cards-area { display: flex; justify-content: center; gap: 15px; margin: 30px 0; flex-wrap: wrap; }\n.card { width: 100px; height: 140px; background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 8px 25px rgba(0,0,0,0.4); position: relative; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; }\n.card:hover { transform: translateY(-8px) rotateY(5deg) scale(1.05); box-shadow: 0 15px 35px rgba(0,0,0,0.5); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-40px) scale(0.8); } 100% { opacity: 1; transform: translateY(0) scale(1); } }\n.card { animation: dealIn 0.5s ease backwards; }\n.card:nth-child(1) { animation-delay: 0.1s; }\n.card:nth-child(2) { animation-delay: 0.2s; }\n.card:nth-child(3) { animation-delay: 0.3s; }\n.card:nth-child(4) { animation-delay: 0.4s; }\n.card-display { font-size: 2em; font-weight: bold; color: #333; }\n.card-suit { font-size: 1.5em; margin-top: 4px; }\n.card-value-bottom { position: absolute; bottom: 6px; right: 8px; font-size: 0.9em; font-weight: bold; color: #333; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 20px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 250px; max-width: 400px; padding: 14px 18px; border: 2px solid rgba(233,69,96,0.3); border-radius: 10px; background: rgba(0,0,0,0.3); color: #fff; font-size: 1.1em; outline: none; transition: border-color 0.3s; }\n.expr-input:focus { border-color: #e94560; }\n.btn { padding: 14px 24px; border: none; border-radius: 10px; font-size: 1em; cursor: pointer; transition: all 0.3s; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }\n.btn-primary { background: linear-gradient(135deg, #e94560, #c73e54); color: white; box-shadow: 0 4px 15px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.1); color: #ddd; border: 1px solid rgba(255,255,255,0.2); }\n.btn-secondary:hover { background: rgba(255,255,255,0.2); }\n.btn-success { background: linear-gradient(135deg, #00d9ff, #0099cc); color: white; box-shadow: 0 4px 15px rgba(0,217,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); }\n.message { text-align: center; padding: 16px; border-radius: 10px; margin: 15px 0; font-weight: 500; min-height: 24px; }\n.msg-success { background: rgba(46, 204, 113, 0.15); border: 1px solid rgba(46, 204, 113, 0.3); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.15); border: 1px solid rgba(231, 76, 60, 0.3); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.15); border: 1px solid rgba(52, 152, 219, 0.3); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }\n.msg-pulse { animation: pulse 0.5s ease; }\n.msg-shake { animation: shake 0.5s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.1); border: 1px dashed rgba(255, 193, 7, 0.4); border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.1em; }\n.rules { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin-top: 30px; border: 1px solid rgba(255,255,255,0.08); }\n.rules h3 { margin-top: 0; color: #e94560; }\n.rules ul { padding-left: 20px; color: #bbb; line-height: 1.8; }\n.rules code { background: rgba(233,69,96,0.15); padding: 2px 6px; border-radius: 4px; color: #e94560; }\n.buttons-row { display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 20px; margin: 15px 0; border: 1px solid rgba(255,255,255,0.1); }\n.all-answers-title { font-weight: bold; color: #e94560; margin-bottom: 12px; font-size: 1.1em; }\n.answers-list { display: flex; flex-direction: column; gap: 8px; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1.05em; color: #ddd; border-left: 3px solid #e94560; }\n.footer { text-align: center; margin-top: 30px; color: #666; font-size: 0.85em; }\n        ')
+			$elm$html$Html$text('\n@import url(\'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap\');\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); margin: 0; min-height: 100vh; color: #eee; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; }\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.header p { color: #8892b0; margin-top: 6px; font-size: 1em; font-weight: 400; }\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { background: rgba(255,255,255,0.04); border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }\n.stat-box:hover { background: rgba(255,255,255,0.08); transform: translateY(-2px); }\n.stat-label { font-size: 0.65em; color: #8892b0; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); color: #fff; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2), inset 0 2px 8px rgba(0,0,0,0.3); }\n.expr-input::placeholder { color: #555; }\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border: 1px solid rgba(255,255,255,0.1); }\n.btn-secondary:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n.hint-box { background: rgba(255, 193, 7, 0.08); border: 1px dashed rgba(255, 193, 7, 0.35); border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; color: #ffc107; font-family: monospace; font-size: 1.05em; }\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n.achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); border-radius: 14px; padding: 16px; margin: 12px 0; }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; background: rgba(255,255,255,0.08); color: #8892b0; border: 1px solid rgba(255,255,255,0.1); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n.rules { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 20px; margin-top: 24px; border: 1px solid rgba(255,255,255,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n.all-answers { background: rgba(255,255,255,0.03); border-radius: 14px; padding: 18px; margin: 12px 0; border: 1px solid rgba(255,255,255,0.08); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; color: #ccd6f6; border-left: 3px solid #e94560; transition: all 0.2s; }\n.answer-item:hover { background: rgba(0,0,0,0.3); transform: translateX(4px); }\n.footer { text-align: center; margin-top: 24px; color: #555; font-size: 0.8em; padding-bottom: 20px; }\n@media (max-width: 600px) { .header h1 { font-size: 2em; } .card { width: 72px; height: 100px; } .card-center-suit { font-size: 2em; } .btn { padding: 10px 14px; font-size: 0.8em; } .stats { gap: 6px; } .stat-box { padding: 8px 10px; } }\n        ')
 		]));
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$core$Basics$modBy = _Basics_modBy;
@@ -7021,8 +7064,10 @@ var $author$project$Main$formatTime = function (seconds) {
 	var m = (seconds / 60) | 0;
 	return $elm$core$String$fromInt(m) + (':' + (((s < 10) ? '0' : '') + $elm$core$String$fromInt(s)));
 };
+var $elm$core$Basics$ge = _Utils_ge;
 var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$html$Html$h3 = _VirtualDom_node('h3');
+var $elm$html$Html$h4 = _VirtualDom_node('h4');
 var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$input = _VirtualDom_node('input');
 var $elm$html$Html$li = _VirtualDom_node('li');
@@ -7088,18 +7133,18 @@ var $elm$html$Html$Events$onInput = function (tagger) {
 };
 var $elm$html$Html$p = _VirtualDom_node('p');
 var $elm$html$Html$Attributes$placeholder = $elm$html$Html$Attributes$stringProperty('placeholder');
+var $elm$html$Html$span = _VirtualDom_node('span');
+var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
+var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
 var $elm$html$Html$ul = _VirtualDom_node('ul');
 var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
-var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
-var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
-var $author$project$Main$viewCard = function (card) {
+var $author$project$Main$viewAchievementToast = function (name) {
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
 			[
-				$elm$html$Html$Attributes$class('card'),
-				A2($elm$html$Html$Attributes$style, 'border', '2px solid ' + card.color)
+				$elm$html$Html$Attributes$class('achievement-toast')
 			]),
 		_List_fromArray(
 			[
@@ -7107,18 +7152,70 @@ var $author$project$Main$viewCard = function (card) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$elm$html$Html$Attributes$class('card-display'),
-						A2($elm$html$Html$Attributes$style, 'color', card.color)
+						$elm$html$Html$Attributes$class('ach-title')
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text(card.display)
+						$elm$html$Html$text('🏆 解锁成就')
 					])),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$elm$html$Html$Attributes$class('card-suit'),
+						$elm$html$Html$Attributes$class('ach-name')
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text(name)
+					]))
+			]));
+};
+var $author$project$Main$viewCard = function (card) {
+	return A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				$elm$html$Html$Attributes$class('card')
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('card-corner-top')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', card.color),
+								A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
+								A2($elm$html$Html$Attributes$style, 'font-weight', '800')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(card.display)
+							])),
+						A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', card.color),
+								A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(card.suit)
+							]))
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('card-center-suit'),
 						A2($elm$html$Html$Attributes$style, 'color', card.color)
 					]),
 				_List_fromArray(
@@ -7129,16 +7226,41 @@ var $author$project$Main$viewCard = function (card) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
-						$elm$html$Html$Attributes$class('card-value-bottom'),
-						A2($elm$html$Html$Attributes$style, 'color', card.color)
+						$elm$html$Html$Attributes$class('card-corner-bottom')
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text(card.display)
+						A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', card.color),
+								A2($elm$html$Html$Attributes$style, 'font-size', '1.1em'),
+								A2($elm$html$Html$Attributes$style, 'font-weight', '800')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(card.display)
+							])),
+						A2(
+						$elm$html$Html$span,
+						_List_fromArray(
+							[
+								A2($elm$html$Html$Attributes$style, 'color', card.color),
+								A2($elm$html$Html$Attributes$style, 'font-size', '0.85em')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(card.suit)
+							]))
 					]))
 			]));
 };
 var $author$project$Main$view = function (model) {
+	var total = model.solved + model.skipped;
+	var winRate = (!total) ? '0%' : ($elm$core$String$fromInt(
+		$elm$core$Basics$round((model.solved / total) * 100)) + '%');
+	var streakFire = (model.streak >= 2) ? ' 🔥' : '';
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
@@ -7161,14 +7283,14 @@ var $author$project$Main$view = function (model) {
 						_List_Nil,
 						_List_fromArray(
 							[
-								$elm$html$Html$text('🃏 24点挑战')
+								$elm$html$Html$text('24点挑战')
 							])),
 						A2(
 						$elm$html$Html$p,
 						_List_Nil,
 						_List_fromArray(
 							[
-								$elm$html$Html$text('用加减乘除和括号，让四张牌算出24')
+								$elm$html$Html$text('用加减乘除和括号，让四张牌算出 24')
 							]))
 					])),
 				A2(
@@ -7205,8 +7327,24 @@ var $author$project$Main$view = function (model) {
 									]),
 								_List_fromArray(
 									[
-										$elm$html$Html$text(
-										$elm$core$String$fromInt(model.streak))
+										A2(
+										$elm$html$Html$span,
+										_List_Nil,
+										_List_fromArray(
+											[
+												$elm$html$Html$text(
+												$elm$core$String$fromInt(model.streak))
+											])),
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('stat-fire')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text(streakFire)
+											]))
 									]))
 							])),
 						A2(
@@ -7255,7 +7393,7 @@ var $author$project$Main$view = function (model) {
 									]),
 								_List_fromArray(
 									[
-										$elm$html$Html$text('最佳连胜')
+										$elm$html$Html$text('最佳')
 									])),
 								A2(
 								$elm$html$Html$div,
@@ -7285,7 +7423,7 @@ var $author$project$Main$view = function (model) {
 									]),
 								_List_fromArray(
 									[
-										$elm$html$Html$text('跳过')
+										$elm$html$Html$text('胜率')
 									])),
 								A2(
 								$elm$html$Html$div,
@@ -7295,8 +7433,7 @@ var $author$project$Main$view = function (model) {
 									]),
 								_List_fromArray(
 									[
-										$elm$html$Html$text(
-										$elm$core$String$fromInt(model.skipped))
+										$elm$html$Html$text(winRate)
 									]))
 							])),
 						A2(
@@ -7327,70 +7464,6 @@ var $author$project$Main$view = function (model) {
 									[
 										$elm$html$Html$text(
 										$author$project$Main$formatTime(model.timer))
-									]))
-							])),
-						A2(
-						$elm$html$Html$div,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$class('stat-box')
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('stat-label')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('总用时')
-									])),
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('stat-value')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text(
-										$author$project$Main$formatTime(model.totalTime))
-									]))
-							])),
-						A2(
-						$elm$html$Html$div,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$class('stat-box')
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('stat-label')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('胜率')
-									])),
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('stat-value')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text(
-										function () {
-											var total = model.solved + model.skipped;
-											return (!total) ? '0%' : ($elm$core$String$fromInt(
-												$elm$core$Basics$round((model.solved / total) * 100)) + '%');
-										}())
 									]))
 							]))
 					])),
@@ -7469,7 +7542,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('✓ 提交答案')
+								$elm$html$Html$text('✓ 提交')
 							])),
 						A2(
 						$elm$html$Html$button,
@@ -7491,7 +7564,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('📋 显示全部')
+								$elm$html$Html$text('📋 全部')
 							])),
 						A2(
 						$elm$html$Html$button,
@@ -7513,7 +7586,7 @@ var $author$project$Main$view = function (model) {
 							]),
 						_List_fromArray(
 							[
-								$elm$html$Html$text('🔄 新游戏')
+								$elm$html$Html$text('🔄 新局')
 							]))
 					])),
 				(model.showAllAnswers && (!$elm$core$List$isEmpty(model.allSolutions))) ? A2(
@@ -7560,6 +7633,70 @@ var $author$project$Main$view = function (model) {
 								}),
 							model.allSolutions))
 					])) : $elm$html$Html$text(''),
+				(!$elm$core$List$isEmpty(model.newAchievements)) ? A2(
+				$elm$html$Html$div,
+				_List_Nil,
+				_Utils_ap(
+					A2($elm$core$List$map, $author$project$Main$viewAchievementToast, model.newAchievements),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									A2($elm$html$Html$Attributes$style, 'text-align', 'center'),
+									A2($elm$html$Html$Attributes$style, 'margin-top', '8px')
+								]),
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$button,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class('btn btn-secondary'),
+											$elm$html$Html$Events$onClick($author$project$Main$DismissAchievements)
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('知道了 👍')
+										]))
+								]))
+						]))) : $elm$html$Html$text(''),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('achievements-panel')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$h4,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$elm$html$Html$text('🏅 成就墙')
+							])),
+						A2(
+						$elm$html$Html$div,
+						_List_Nil,
+						A2(
+							$elm$core$List$map,
+							function (a) {
+								return A2(
+									$elm$html$Html$span,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class(
+											A2($elm$core$List$member, a, model.achievements) ? 'ach-badge unlocked' : 'ach-badge')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text(a)
+										]));
+							},
+							$author$project$Main$allAchievements))
+					])),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -7613,7 +7750,7 @@ var $author$project$Main$view = function (model) {
 								_List_Nil,
 								_List_fromArray(
 									[
-										$elm$html$Html$text('支持分数运算，如 (8/(3-8/3))*3 = 24')
+										$elm$html$Html$text('支持分数运算，如 8/(3-8/3) = 24')
 									]))
 							])),
 						A2(
@@ -7633,7 +7770,7 @@ var $author$project$Main$view = function (model) {
 								_List_Nil,
 								_List_fromArray(
 									[
-										$elm$html$Html$text('牌面 3, 3, 8, 8：'),
+										$elm$html$Html$text('3, 3, 8, 8 → '),
 										A2(
 										$elm$html$Html$code,
 										_List_Nil,
@@ -7648,7 +7785,7 @@ var $author$project$Main$view = function (model) {
 								_List_Nil,
 								_List_fromArray(
 									[
-										$elm$html$Html$text('牌面 4, 4, 10, 10：'),
+										$elm$html$Html$text('4, 4, 10, 10 → '),
 										A2(
 										$elm$html$Html$code,
 										_List_Nil,
@@ -7663,7 +7800,7 @@ var $author$project$Main$view = function (model) {
 								_List_Nil,
 								_List_fromArray(
 									[
-										$elm$html$Html$text('牌面 1, 5, 5, 5：'),
+										$elm$html$Html$text('1, 5, 5, 5 → '),
 										A2(
 										$elm$html$Html$code,
 										_List_Nil,
@@ -7683,7 +7820,7 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('用 Elm 语言构建 · 纯函数式编程 · 无运行时错误')
+						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩')
 					]))
 			]));
 };

@@ -7,19 +7,27 @@
   <meta name="theme-color" content="#1a1a2e">
   <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏">
   <link rel="manifest" href="manifest.json">
-  <style>body { padding: 0; margin: 0; background: #1a1a2e; }</style>
+  <style>
+    body { padding: 0; margin: 0; background: #1a1a2e; overflow-x: hidden; }
+    #particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+    .particle { position: absolute; width: 8px; height: 8px; border-radius: 50%; animation: particleBurst 1s ease-out forwards; }
+    @keyframes particleBurst {
+      0% { transform: translate(0,0) scale(1); opacity: 1; }
+      100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+    }
+  </style>
 </head>
 <body>
+  <div id="particles"></div>
   <div id="elm"></div>
   <script src="main.js"></script>
   <script>
     var app = Elm.Main.init({ node: document.getElementById("elm") });
 
-    // LocalStorage bridge
+    // ===== LocalStorage =====
     app.ports.saveToStorage.subscribe(function(json) {
       try { localStorage.setItem('24points-data', json); } catch(e) {}
     });
-
     app.ports.loadFromStorage.subscribe(function() {
       try {
         var data = localStorage.getItem('24points-data');
@@ -27,7 +35,80 @@
       } catch(e) {}
     });
 
-    // Service Worker registration
+    // ===== SFX (Web Audio API) =====
+    var audioCtx = null;
+    function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    function playTone(freq, type, duration, delay) {
+      ensureAudio();
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.15, audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime + delay + duration);
+    }
+    function playSuccess() {
+      playTone(523.25, 'sine', 0.15, 0);
+      playTone(659.25, 'sine', 0.15, 0.1);
+      playTone(783.99, 'sine', 0.15, 0.2);
+      playTone(1046.50, 'sine', 0.3, 0.3);
+    }
+    function playError() {
+      playTone(200, 'sawtooth', 0.3, 0);
+      playTone(150, 'sawtooth', 0.4, 0.15);
+    }
+    function playDeal() {
+      playTone(800, 'triangle', 0.05, 0);
+      playTone(600, 'triangle', 0.05, 0.03);
+    }
+    function playClick() {
+      playTone(1200, 'sine', 0.03, 0);
+    }
+    function playStreak(n) {
+      var base = 440 + n * 50;
+      playTone(base, 'sine', 0.1, 0);
+      playTone(base * 1.25, 'sine', 0.1, 0.08);
+      playTone(base * 1.5, 'sine', 0.2, 0.16);
+    }
+    app.ports.playSound.subscribe(function(type) {
+      try {
+        if (type === 'success') playSuccess();
+        else if (type === 'error') playError();
+        else if (type === 'deal') playDeal();
+        else if (type === 'click') playClick();
+        else if (type.startsWith('streak:')) playStreak(parseInt(type.split(':')[1]));
+      } catch(e) {}
+    });
+
+    // ===== Particle Effects =====
+    app.ports.spawnParticles.subscribe(function(count) {
+      var container = document.getElementById('particles');
+      var colors = ['#e94560', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff9f45', '#c9b1ff'];
+      for (var i = 0; i < count; i++) {
+        var p = document.createElement('div');
+        p.className = 'particle';
+        var angle = Math.random() * Math.PI * 2;
+        var dist = 80 + Math.random() * 200;
+        p.style.setProperty('--tx', Math.cos(angle) * dist + 'px');
+        p.style.setProperty('--ty', Math.sin(angle) * dist + 'px');
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.left = (window.innerWidth / 2 + (Math.random() - 0.5) * 100) + 'px';
+        p.style.top = (window.innerHeight / 2 + (Math.random() - 0.5) * 100) + 'px';
+        p.style.width = (4 + Math.random() * 8) + 'px';
+        p.style.height = p.style.width;
+        container.appendChild(p);
+        setTimeout(function(el) { return function() { if (el.parentNode) el.parentNode.removeChild(el); }; }(p), 1100);
+      }
+    });
+
+    // ===== Service Worker =====
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(function(){});
     }
