@@ -3,7 +3,7 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom as Dom
 import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
-import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id)
+import Html.Attributes exposing (class, value, style, placeholder, type_, src, rel, href, id, title)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
 import Json.Encode as E
@@ -60,6 +60,7 @@ type Msg
     | DismissAchievements
     | ToggleSFX
     | ClearHistory
+    | CopyAnswer String
     | NoOp
 
 
@@ -71,6 +72,7 @@ port receiveFromStorage : (String -> msg) -> Sub msg
 port playSound : String -> Cmd msg
 port spawnParticles : Int -> Cmd msg
 port setSFX : Bool -> Cmd msg
+port copyToClipboard : String -> Cmd msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -510,6 +512,11 @@ update msg model =
         ClearHistory ->
             ( { model | history = [] }, Cmd.none )
 
+        CopyAnswer ans ->
+            ( { model | message = "📋 已复制到剪贴板", messageType = Info }
+            , copyToClipboard (ans ++ " = 24")
+            )
+
         NoOp -> (model, Cmd.none )
 
 
@@ -658,6 +665,19 @@ viewAchievementToast name =
         , div [ class "ach-name" ] [ text name ]
         ]
 
+keyDecoder : D.Decoder { key : String, ctrlKey : Bool }
+keyDecoder =
+    D.map2 (\k c -> { key = k, ctrlKey = c })
+        (D.field "key" D.string)
+        (D.field "ctrlKey" D.bool)
+
+decodeKey : { key : String, ctrlKey : Bool } -> Msg
+decodeKey { key, ctrlKey } =
+    if key == "Enter" && ctrlKey then SubmitAnswer
+    else if key == "Enter" then SubmitAnswer
+    else if key == "Escape" then UpdateInput ""
+    else NoOp
+
 view : Model -> Html Msg
 view model =
     let streakFire = if model.streak >= 2 then " 🔥" else ""
@@ -706,12 +726,13 @@ view model =
                 , type_ "text"
                 , id "expr-input"
                 , value model.input
-                , placeholder "输入算式，如 (3+3)*8/2"
+                , placeholder "输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除"
                 , onInput UpdateInput
-                , on "keydown" (D.map (\key -> if key == 13 then SubmitAnswer else NoOp) D.int)
+                , on "keydown" (D.map decodeKey keyDecoder)
                 ]
                 []
             ]
+
         , div [ class "buttons-row" ]
             [ button [ class "btn btn-primary", onClick SubmitAnswer ] [ text "✓ 提交" ]
             , button [ class "btn btn-success", onClick ShowHint ] [ text "💡 提示" ]
@@ -733,7 +754,7 @@ view model =
         , if model.showAllAnswers && not (List.isEmpty model.allSolutions) then
             div [ class "all-answers" ]
                 [ div [ class "all-answers-title" ] [ text ("全部解法 (" ++ String.fromInt (List.length model.allSolutions) ++ " 个)") ]
-                , div [ class "answers-list" ] (List.indexedMap (\i ans -> div [ class "answer-item" ] [ text (String.fromInt (i + 1) ++ ". " ++ ans ++ " = 24") ]) model.allSolutions)
+                , div [ class "answers-list" ] (List.indexedMap (\i ans -> div [ class "answer-item", onClick (CopyAnswer ans), title "点击复制" ] [ text (String.fromInt (i + 1) ++ ". " ++ ans ++ " = 24") ]) model.allSolutions)
                 ]
           else
             text ""
