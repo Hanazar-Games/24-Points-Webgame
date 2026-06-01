@@ -120,11 +120,14 @@ type Msg
     | ClearCombo
     | ShowSteps
     | HideSteps
+    | ExportData
+    | TriggerImport
     | NoOp
 
 type alias Flags =
     { today : String
     , hash : String
+    , prefersDark : Bool
     }
 
 
@@ -138,6 +141,8 @@ port spawnParticles : Int -> Cmd msg
 port setSFX : Bool -> Cmd msg
 port copyToClipboard : String -> Cmd msg
 port setHash : String -> Cmd msg
+port vibrate : Int -> Cmd msg
+port triggerImport : () -> Cmd msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -629,7 +634,7 @@ init flags =
             , difficulty = Normal
             , liveResult = ""
             , gameMode = Classic
-            , theme = Dark
+            , theme = if flags.prefersDark then Dark else Light
             , timeLeft = 0
             , timeAttackScore = 0
             , timeAttackBest = 0
@@ -950,7 +955,7 @@ update msg model =
                 Err errMsg ->
                     let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                         newModel = { model | message = errMsg, messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
-                    in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error" ] )
+                    in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error", vibrate 150 ] )
 
         ShowHint ->
             case model.allSolutions of
@@ -1041,9 +1046,13 @@ update msg model =
                         let finalScore = model.timeAttackScore
                             newBest = max finalScore model.timeAttackBest
                             newHistory = finalScore :: List.take 9 model.timeAttackHistory
-                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！最终得分：" ++ String.fromInt finalScore, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
+                            isNewRecord = finalScore > model.timeAttackBest && finalScore > 0
+                            recordMsg = if isNewRecord then " 🎉 新纪录！" else ""
+                            totalTA = finalScore + model.skipped
+                            accuracy = if totalTA == 0 then "N/A" else String.fromInt (round (toFloat finalScore / toFloat totalTA * 100)) ++ "%"
+                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！得分：" ++ String.fromInt finalScore ++ " | 准确率：" ++ accuracy ++ " | 最佳：" ++ String.fromInt newBest ++ recordMsg, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
                         in
-                        ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error" ] )
+                        ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error", vibrate 300 ] )
                     else
                         let newTimeLeft = model.timeLeft - 1
                         in
@@ -1165,6 +1174,14 @@ update msg model =
                 newShared = model.sharedCount + 1
             in ( { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }, copyToClipboard shareText )
 
+        ExportData ->
+            ( { model | message = "数据已复制到剪贴板", messageType = Info }
+            , copyToClipboard (encodeStats model)
+            )
+
+        TriggerImport ->
+            ( model, triggerImport () )
+
         NoOp -> (model, Cmd.none )
 
 
@@ -1216,9 +1233,9 @@ handleCorrect model =
                     , shieldActive = newShield
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5) ]
-                    else [ playSound "success", spawnParticles 30 ]
+                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5), vibrate 80 ]
+                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
@@ -1257,9 +1274,9 @@ handleCorrect model =
                     , dailyHistory = newDailyHistory
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40 ]
-                    else [ playSound "success", spawnParticles 30 ]
+                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
@@ -1291,9 +1308,9 @@ handleCorrect model =
                     , shieldActive = newShield
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40 ]
-                    else [ playSound "success", spawnParticles 30 ]
+                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
@@ -1848,7 +1865,10 @@ view model =
             div [ class "history-panel" ]
                 [ div [ class "history-header" ]
                     [ span [ class "history-title" ] [ text "尝试记录" ]
-                    , button [ class "history-clear", onClick ClearHistory ] [ text "清除" ]
+                    , div []
+                        [ button [ class "history-clear", onClick ExportData, title "导出数据到剪贴板" ] [ text "导出" ]
+                        , button [ class "history-clear", onClick ClearHistory ] [ text "清除" ]
+                        ]
                     ]
                 , div [ class "history-list" ]
                     (List.indexedMap (\i h -> div [ class "history-item" ] [ text (String.fromInt (i + 1) ++ ". " ++ h) ]) (List.take 8 model.history))
@@ -1953,8 +1973,11 @@ view model =
                 , li [] [ text "1, 5, 5, 5 → ", code [] [ text "5*(5-1/5)" ], text " = 24" ]
                 ]
             ]
+        , div [ class "buttons-row" ]
+            [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
+            ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.7" ]
         ]
 
 

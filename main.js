@@ -4929,6 +4929,7 @@ var $elm$core$Result$isOk = function (result) {
 	}
 };
 var $elm$json$Json$Decode$andThen = _Json_andThen;
+var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$map = _Json_map1;
 var $elm$json$Json$Decode$map2 = _Json_map2;
 var $elm$json$Json$Decode$succeed = _Json_succeed;
@@ -5247,6 +5248,7 @@ var $elm$json$Json$Decode$field = _Json_decodeField;
 var $author$project$Main$Classic = {$: 'Classic'};
 var $author$project$Main$Dark = {$: 'Dark'};
 var $author$project$Main$Info = {$: 'Info'};
+var $author$project$Main$Light = {$: 'Light'};
 var $author$project$Main$NewCards = function (a) {
 	return {$: 'NewCards', a: a};
 };
@@ -5625,7 +5627,55 @@ var $author$project$Main$parseHashCards = function (hash) {
 	}
 };
 var $author$project$Main$init = function (flags) {
-	var baseModel = {achievementTimer: 0, achievements: _List_Nil, allSolutions: _List_Nil, bestStreak: 0, cards: _List_Nil, comboDisplay: $elm$core$Maybe$Nothing, dailyBestTime: 0, dailyCompleted: false, dailyDate: flags.today, dailyHistory: _List_Nil, difficulty: $author$project$Main$Normal, fastestSolve: 0, gameMode: $author$project$Main$Classic, hintLevel: 0, hintText: '', history: _List_Nil, input: '', inputHint: '', keypadEnabled: true, liveResult: '', message: '点击「新游戏」开始24点挑战！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, sfxEnabled: true, sharedCount: 0, shieldActive: false, showAllAnswers: false, showHint: false, showSkippedProblems: false, showSteps: false, skipped: 0, skippedProblems: _List_Nil, solved: 0, solverCache: $elm$core$Dict$empty, stepByStep: _List_Nil, stepsWithKeypad: 0, streak: 0, theme: $author$project$Main$Dark, timeAttackBest: 0, timeAttackHistory: _List_Nil, timeAttackScore: 0, timeLeft: 0, timer: 0, totalAttempts: 0, totalGames: 0, totalTime: 0};
+	var baseModel = {
+		achievementTimer: 0,
+		achievements: _List_Nil,
+		allSolutions: _List_Nil,
+		bestStreak: 0,
+		cards: _List_Nil,
+		comboDisplay: $elm$core$Maybe$Nothing,
+		dailyBestTime: 0,
+		dailyCompleted: false,
+		dailyDate: flags.today,
+		dailyHistory: _List_Nil,
+		difficulty: $author$project$Main$Normal,
+		fastestSolve: 0,
+		gameMode: $author$project$Main$Classic,
+		hintLevel: 0,
+		hintText: '',
+		history: _List_Nil,
+		input: '',
+		inputHint: '',
+		keypadEnabled: true,
+		liveResult: '',
+		message: '点击「新游戏」开始24点挑战！',
+		messageType: $author$project$Main$Info,
+		newAchievements: _List_Nil,
+		pendingNewCards: false,
+		sfxEnabled: true,
+		sharedCount: 0,
+		shieldActive: false,
+		showAllAnswers: false,
+		showHint: false,
+		showSkippedProblems: false,
+		showSteps: false,
+		skipped: 0,
+		skippedProblems: _List_Nil,
+		solved: 0,
+		solverCache: $elm$core$Dict$empty,
+		stepByStep: _List_Nil,
+		stepsWithKeypad: 0,
+		streak: 0,
+		theme: flags.prefersDark ? $author$project$Main$Dark : $author$project$Main$Light,
+		timeAttackBest: 0,
+		timeAttackHistory: _List_Nil,
+		timeAttackScore: 0,
+		timeLeft: 0,
+		timer: 0,
+		totalAttempts: 0,
+		totalGames: 0,
+		totalTime: 0
+	};
 	var _v0 = $author$project$Main$parseHashCards(flags.hash);
 	if (_v0.$ === 'Just') {
 		var values = _v0.a;
@@ -6605,7 +6655,6 @@ var $author$project$Main$ExtraData = F8(
 	function (timeAttackBest, dailyCompletedDate, dailyBestTime, fastestSolve, totalAttempts, keypadEnabled, sharedCount, stepsWithKeypad) {
 		return {dailyBestTime: dailyBestTime, dailyCompletedDate: dailyCompletedDate, fastestSolve: fastestSolve, keypadEnabled: keypadEnabled, sharedCount: sharedCount, stepsWithKeypad: stepsWithKeypad, timeAttackBest: timeAttackBest, totalAttempts: totalAttempts};
 	});
-var $elm$json$Json$Decode$bool = _Json_decodeBool;
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
@@ -6624,7 +6673,6 @@ var $elm$core$Tuple$pair = F2(
 	function (a, b) {
 		return _Utils_Tuple2(a, b);
 	});
-var $author$project$Main$Light = {$: 'Light'};
 var $author$project$Main$themeDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	function (s) {
@@ -6797,100 +6845,29 @@ var $author$project$Main$difficultyName = function (diff) {
 			return '高级（必须用除法）';
 	}
 };
-var $author$project$Main$exprHasDiv = function (e) {
-	switch (e.$) {
-		case 'Num':
-			return false;
-		case 'DivE':
-			return true;
-		case 'AddE':
-			var l = e.a;
-			var r = e.b;
-			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
-		case 'SubE':
-			var l = e.a;
-			var r = e.b;
-			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
-		default:
-			var l = e.a;
-			var r = e.b;
-			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
-	}
-};
-var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
-var $elm$core$Basics$ge = _Utils_ge;
-var $elm$core$String$foldl = _String_foldl;
-var $elm$core$Basics$modBy = _Basics_modBy;
-var $author$project$Main$dateSeedInt = function (s) {
-	return A3(
-		$elm$core$String$foldl,
-		F2(
-			function (c, acc) {
-				return A2(
-					$elm$core$Basics$modBy,
-					2147483647,
-					(acc * 31) + $elm$core$Char$toCode(c));
-			}),
-		0,
-		s);
-};
-var $author$project$Main$Add = {$: 'Add'};
-var $author$project$Main$Div = {$: 'Div'};
-var $author$project$Main$Mul = {$: 'Mul'};
-var $author$project$Main$Sub = {$: 'Sub'};
-var $elm$core$List$append = F2(
-	function (xs, ys) {
-		if (!ys.b) {
-			return xs;
-		} else {
-			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
-		}
+var $elm$json$Json$Encode$bool = _Json_wrap;
+var $elm$json$Json$Encode$int = _Json_wrap;
+var $elm$json$Json$Encode$list = F2(
+	function (func, entries) {
+		return _Json_wrap(
+			A3(
+				$elm$core$List$foldl,
+				_Json_addEntry(func),
+				_Json_emptyArray(_Utils_Tuple0),
+				entries));
 	});
-var $elm$core$List$concat = function (lists) {
-	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
-};
-var $elm$core$List$concatMap = F2(
-	function (f, list) {
-		return $elm$core$List$concat(
-			A2($elm$core$List$map, f, list));
-	});
-var $author$project$Main$allPairs = function (n) {
-	return A2(
-		$elm$core$List$concatMap,
-		function (i) {
-			return A2(
-				$elm$core$List$map,
-				function (j) {
-					return _Utils_Tuple2(i, j);
-				},
-				A2($elm$core$List$range, i + 1, n - 1));
-		},
-		A2($elm$core$List$range, 0, n - 2));
-};
-var $author$project$Main$applyOp = F3(
-	function (op, a, b) {
-		switch (op.$) {
-			case 'Add':
-				return $elm$core$Maybe$Just(a + b);
-			case 'Sub':
-				return $elm$core$Maybe$Just(a - b);
-			case 'Mul':
-				return $elm$core$Maybe$Just(a * b);
-			default:
-				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
-		}
-	});
-var $author$project$Main$opSymbol = function (op) {
-	switch (op.$) {
-		case 'Add':
-			return '+';
-		case 'Sub':
-			return '-';
-		case 'Mul':
-			return '*';
-		default:
-			return '/';
-	}
+var $elm$json$Json$Encode$object = function (pairs) {
+	return _Json_wrap(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (_v0, obj) {
+					var k = _v0.a;
+					var v = _v0.b;
+					return A3(_Json_addField, k, v, obj);
+				}),
+			_Json_emptyObject(_Utils_Tuple0),
+			pairs));
 };
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
@@ -7018,6 +6995,169 @@ var $elm$core$List$take = F2(
 	function (n, list) {
 		return A3($elm$core$List$takeFast, 0, n, list);
 	});
+var $author$project$Main$themeEncoder = function (t) {
+	if (t.$ === 'Dark') {
+		return $elm$json$Json$Encode$string('dark');
+	} else {
+		return $elm$json$Json$Encode$string('light');
+	}
+};
+var $author$project$Main$encodeStats = function (model) {
+	return A2(
+		$elm$json$Json$Encode$encode,
+		0,
+		$elm$json$Json$Encode$object(
+			_List_fromArray(
+				[
+					_Utils_Tuple2(
+					'bestStreak',
+					$elm$json$Json$Encode$int(model.bestStreak)),
+					_Utils_Tuple2(
+					'totalSolved',
+					$elm$json$Json$Encode$int(model.solved)),
+					_Utils_Tuple2(
+					'totalSkipped',
+					$elm$json$Json$Encode$int(model.skipped)),
+					_Utils_Tuple2(
+					'totalTime',
+					$elm$json$Json$Encode$int(model.totalTime)),
+					_Utils_Tuple2(
+					'achievements',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
+					_Utils_Tuple2(
+					'sfxEnabled',
+					$elm$json$Json$Encode$bool(model.sfxEnabled)),
+					_Utils_Tuple2(
+					'history',
+					A2(
+						$elm$json$Json$Encode$list,
+						$elm$json$Json$Encode$string,
+						A2($elm$core$List$take, 20, model.history))),
+					_Utils_Tuple2(
+					'theme',
+					$author$project$Main$themeEncoder(model.theme)),
+					_Utils_Tuple2(
+					'timeAttackBest',
+					$elm$json$Json$Encode$int(model.timeAttackBest)),
+					_Utils_Tuple2(
+					'dailyCompletedDate',
+					$elm$json$Json$Encode$string(
+						model.dailyCompleted ? model.dailyDate : '')),
+					_Utils_Tuple2(
+					'dailyBestTime',
+					$elm$json$Json$Encode$int(model.dailyBestTime)),
+					_Utils_Tuple2(
+					'fastestSolve',
+					$elm$json$Json$Encode$int(model.fastestSolve)),
+					_Utils_Tuple2(
+					'totalAttempts',
+					$elm$json$Json$Encode$int(model.totalAttempts)),
+					_Utils_Tuple2(
+					'keypadEnabled',
+					$elm$json$Json$Encode$bool(model.keypadEnabled)),
+					_Utils_Tuple2(
+					'sharedCount',
+					$elm$json$Json$Encode$int(model.sharedCount)),
+					_Utils_Tuple2(
+					'stepsWithKeypad',
+					$elm$json$Json$Encode$int(model.stepsWithKeypad))
+				])));
+};
+var $author$project$Main$exprHasDiv = function (e) {
+	switch (e.$) {
+		case 'Num':
+			return false;
+		case 'DivE':
+			return true;
+		case 'AddE':
+			var l = e.a;
+			var r = e.b;
+			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
+		case 'SubE':
+			var l = e.a;
+			var r = e.b;
+			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
+		default:
+			var l = e.a;
+			var r = e.b;
+			return $author$project$Main$exprHasDiv(l) || $author$project$Main$exprHasDiv(r);
+	}
+};
+var $elm$browser$Browser$Dom$focus = _Browser_call('focus');
+var $elm$core$Basics$ge = _Utils_ge;
+var $elm$core$String$foldl = _String_foldl;
+var $elm$core$Basics$modBy = _Basics_modBy;
+var $author$project$Main$dateSeedInt = function (s) {
+	return A3(
+		$elm$core$String$foldl,
+		F2(
+			function (c, acc) {
+				return A2(
+					$elm$core$Basics$modBy,
+					2147483647,
+					(acc * 31) + $elm$core$Char$toCode(c));
+			}),
+		0,
+		s);
+};
+var $author$project$Main$Add = {$: 'Add'};
+var $author$project$Main$Div = {$: 'Div'};
+var $author$project$Main$Mul = {$: 'Mul'};
+var $author$project$Main$Sub = {$: 'Sub'};
+var $elm$core$List$append = F2(
+	function (xs, ys) {
+		if (!ys.b) {
+			return xs;
+		} else {
+			return A3($elm$core$List$foldr, $elm$core$List$cons, ys, xs);
+		}
+	});
+var $elm$core$List$concat = function (lists) {
+	return A3($elm$core$List$foldr, $elm$core$List$append, _List_Nil, lists);
+};
+var $elm$core$List$concatMap = F2(
+	function (f, list) {
+		return $elm$core$List$concat(
+			A2($elm$core$List$map, f, list));
+	});
+var $author$project$Main$allPairs = function (n) {
+	return A2(
+		$elm$core$List$concatMap,
+		function (i) {
+			return A2(
+				$elm$core$List$map,
+				function (j) {
+					return _Utils_Tuple2(i, j);
+				},
+				A2($elm$core$List$range, i + 1, n - 1));
+		},
+		A2($elm$core$List$range, 0, n - 2));
+};
+var $author$project$Main$applyOp = F3(
+	function (op, a, b) {
+		switch (op.$) {
+			case 'Add':
+				return $elm$core$Maybe$Just(a + b);
+			case 'Sub':
+				return $elm$core$Maybe$Just(a - b);
+			case 'Mul':
+				return $elm$core$Maybe$Just(a * b);
+			default:
+				return (!b) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just(a / b);
+		}
+	});
+var $author$project$Main$opSymbol = function (op) {
+	switch (op.$) {
+		case 'Add':
+			return '+';
+		case 'Sub':
+			return '-';
+		case 'Mul':
+			return '*';
+		default:
+			return '/';
+	}
+};
 var $author$project$Main$removeAt = F2(
 	function (idx, list) {
 		return _Utils_ap(
@@ -7380,104 +7520,13 @@ var $author$project$Main$countOps = function (e) {
 	}
 };
 var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
-var $elm$json$Json$Encode$bool = _Json_wrap;
-var $elm$json$Json$Encode$int = _Json_wrap;
-var $elm$json$Json$Encode$list = F2(
-	function (func, entries) {
-		return _Json_wrap(
-			A3(
-				$elm$core$List$foldl,
-				_Json_addEntry(func),
-				_Json_emptyArray(_Utils_Tuple0),
-				entries));
-	});
-var $elm$json$Json$Encode$object = function (pairs) {
-	return _Json_wrap(
-		A3(
-			$elm$core$List$foldl,
-			F2(
-				function (_v0, obj) {
-					var k = _v0.a;
-					var v = _v0.b;
-					return A3(_Json_addField, k, v, obj);
-				}),
-			_Json_emptyObject(_Utils_Tuple0),
-			pairs));
-};
-var $author$project$Main$themeEncoder = function (t) {
-	if (t.$ === 'Dark') {
-		return $elm$json$Json$Encode$string('dark');
-	} else {
-		return $elm$json$Json$Encode$string('light');
-	}
-};
-var $author$project$Main$encodeStats = function (model) {
-	return A2(
-		$elm$json$Json$Encode$encode,
-		0,
-		$elm$json$Json$Encode$object(
-			_List_fromArray(
-				[
-					_Utils_Tuple2(
-					'bestStreak',
-					$elm$json$Json$Encode$int(model.bestStreak)),
-					_Utils_Tuple2(
-					'totalSolved',
-					$elm$json$Json$Encode$int(model.solved)),
-					_Utils_Tuple2(
-					'totalSkipped',
-					$elm$json$Json$Encode$int(model.skipped)),
-					_Utils_Tuple2(
-					'totalTime',
-					$elm$json$Json$Encode$int(model.totalTime)),
-					_Utils_Tuple2(
-					'achievements',
-					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$string, model.achievements)),
-					_Utils_Tuple2(
-					'sfxEnabled',
-					$elm$json$Json$Encode$bool(model.sfxEnabled)),
-					_Utils_Tuple2(
-					'history',
-					A2(
-						$elm$json$Json$Encode$list,
-						$elm$json$Json$Encode$string,
-						A2($elm$core$List$take, 20, model.history))),
-					_Utils_Tuple2(
-					'theme',
-					$author$project$Main$themeEncoder(model.theme)),
-					_Utils_Tuple2(
-					'timeAttackBest',
-					$elm$json$Json$Encode$int(model.timeAttackBest)),
-					_Utils_Tuple2(
-					'dailyCompletedDate',
-					$elm$json$Json$Encode$string(
-						model.dailyCompleted ? model.dailyDate : '')),
-					_Utils_Tuple2(
-					'dailyBestTime',
-					$elm$json$Json$Encode$int(model.dailyBestTime)),
-					_Utils_Tuple2(
-					'fastestSolve',
-					$elm$json$Json$Encode$int(model.fastestSolve)),
-					_Utils_Tuple2(
-					'totalAttempts',
-					$elm$json$Json$Encode$int(model.totalAttempts)),
-					_Utils_Tuple2(
-					'keypadEnabled',
-					$elm$json$Json$Encode$bool(model.keypadEnabled)),
-					_Utils_Tuple2(
-					'sharedCount',
-					$elm$json$Json$Encode$int(model.sharedCount)),
-					_Utils_Tuple2(
-					'stepsWithKeypad',
-					$elm$json$Json$Encode$int(model.stepsWithKeypad))
-				])));
-};
 var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
 var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
 		$author$project$Main$encodeStats(model));
 };
 var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
+var $author$project$Main$vibrate = _Platform_outgoingPort('vibrate', $elm$json$Json$Encode$int);
 var $author$project$Main$handleCorrect = function (model) {
 	var stepCount = function () {
 		var _v7 = $author$project$Main$parseExpr(
@@ -7538,17 +7587,20 @@ var $author$project$Main$handleCorrect = function (model) {
 			var sfx = hasNewAch ? _List_fromArray(
 				[
 					$author$project$Main$playSound('achievement'),
-					$author$project$Main$spawnParticles(50)
+					$author$project$Main$spawnParticles(50),
+					$author$project$Main$vibrate(200)
 				]) : ((newStreak >= 2) ? _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
 					$author$project$Main$playSound(
 					'streak:' + $elm$core$String$fromInt(newStreak)),
-					$author$project$Main$spawnParticles(30 + (newStreak * 5))
+					$author$project$Main$spawnParticles(30 + (newStreak * 5)),
+					$author$project$Main$vibrate(80)
 				]) : _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
-					$author$project$Main$spawnParticles(30)
+					$author$project$Main$spawnParticles(30),
+					$author$project$Main$vibrate(80)
 				]));
 			return _Utils_Tuple2(
 				newModel,
@@ -7615,17 +7667,20 @@ var $author$project$Main$handleCorrect = function (model) {
 			var sfx = hasNewAch ? _List_fromArray(
 				[
 					$author$project$Main$playSound('achievement'),
-					$author$project$Main$spawnParticles(50)
+					$author$project$Main$spawnParticles(50),
+					$author$project$Main$vibrate(200)
 				]) : ((newStreak >= 2) ? _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
 					$author$project$Main$playSound(
 					'streak:' + $elm$core$String$fromInt(newStreak)),
-					$author$project$Main$spawnParticles(40)
+					$author$project$Main$spawnParticles(40),
+					$author$project$Main$vibrate(80)
 				]) : _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
-					$author$project$Main$spawnParticles(30)
+					$author$project$Main$spawnParticles(30),
+					$author$project$Main$vibrate(80)
 				]));
 			return _Utils_Tuple2(
 				newModel,
@@ -7685,17 +7740,20 @@ var $author$project$Main$handleCorrect = function (model) {
 			var sfx = hasNewAch ? _List_fromArray(
 				[
 					$author$project$Main$playSound('achievement'),
-					$author$project$Main$spawnParticles(50)
+					$author$project$Main$spawnParticles(50),
+					$author$project$Main$vibrate(200)
 				]) : ((newStreak >= 2) ? _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
 					$author$project$Main$playSound(
 					'streak:' + $elm$core$String$fromInt(newStreak)),
-					$author$project$Main$spawnParticles(40)
+					$author$project$Main$spawnParticles(40),
+					$author$project$Main$vibrate(80)
 				]) : _List_fromArray(
 				[
 					$author$project$Main$playSound('success'),
-					$author$project$Main$spawnParticles(30)
+					$author$project$Main$spawnParticles(30),
+					$author$project$Main$vibrate(80)
 				]));
 			return _Utils_Tuple2(
 				newModel,
@@ -7997,6 +8055,11 @@ var $author$project$Main$stepByStepSolve = function (expr) {
 		}
 	}
 };
+var $author$project$Main$triggerImport = _Platform_outgoingPort(
+	'triggerImport',
+	function ($) {
+		return $elm$json$Json$Encode$null;
+	});
 var $author$project$Main$update = F2(
 	function (msg, model) {
 		switch (msg.$) {
@@ -8165,7 +8228,8 @@ var $author$project$Main$update = F2(
 							_List_fromArray(
 								[
 									$author$project$Main$saveCmd(newModel),
-									$author$project$Main$playSound('error')
+									$author$project$Main$playSound('error'),
+									$author$project$Main$vibrate(150)
 								])));
 				}
 			case 'ShowHint':
@@ -8339,15 +8403,20 @@ var $author$project$Main$update = F2(
 				if (_v14.$ === 'TimeAttack') {
 					if (model.timeLeft <= 1) {
 						var finalScore = model.timeAttackScore;
+						var isNewRecord = (_Utils_cmp(finalScore, model.timeAttackBest) > 0) && (finalScore > 0);
+						var recordMsg = isNewRecord ? ' 🎉 新纪录！' : '';
 						var newBest = A2($elm$core$Basics$max, finalScore, model.timeAttackBest);
 						var newHistory = A2(
 							$elm$core$List$cons,
 							finalScore,
 							A2($elm$core$List$take, 9, model.timeAttackHistory));
+						var totalTA = finalScore + model.skipped;
+						var accuracy = (!totalTA) ? 'N/A' : ($elm$core$String$fromInt(
+							$elm$core$Basics$round((finalScore / totalTA) * 100)) + '%');
 						var gameOverModel = _Utils_update(
 							model,
 							{
-								message: '时间到！最终得分：' + $elm$core$String$fromInt(finalScore),
+								message: '时间到！得分：' + ($elm$core$String$fromInt(finalScore) + (' | 准确率：' + (accuracy + (' | 最佳：' + ($elm$core$String$fromInt(newBest) + recordMsg))))),
 								messageType: $author$project$Main$Info,
 								pendingNewCards: false,
 								timeAttackBest: newBest,
@@ -8360,7 +8429,8 @@ var $author$project$Main$update = F2(
 								_List_fromArray(
 									[
 										$author$project$Main$saveCmd(gameOverModel),
-										$author$project$Main$playSound('error')
+										$author$project$Main$playSound('error'),
+										$author$project$Main$vibrate(300)
 									])));
 					} else {
 						var newTimeLeft = model.timeLeft - 1;
@@ -8646,6 +8716,17 @@ var $author$project$Main$update = F2(
 						model,
 						{message: '题目已复制到剪贴板', messageType: $author$project$Main$Info, sharedCount: newShared}),
 					$author$project$Main$copyToClipboard(shareText));
+			case 'ExportData':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{message: '数据已复制到剪贴板', messageType: $author$project$Main$Info}),
+					$author$project$Main$copyToClipboard(
+						$author$project$Main$encodeStats(model)));
+			case 'TriggerImport':
+				return _Utils_Tuple2(
+					model,
+					$author$project$Main$triggerImport(_Utils_Tuple0));
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
@@ -8662,6 +8743,7 @@ var $author$project$Main$CopyAnswer = function (a) {
 };
 var $author$project$Main$DismissAchievements = {$: 'DismissAchievements'};
 var $author$project$Main$Easy = {$: 'Easy'};
+var $author$project$Main$ExportData = {$: 'ExportData'};
 var $author$project$Main$HideSteps = {$: 'HideSteps'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$SetGameMode = function (a) {
@@ -8676,6 +8758,7 @@ var $author$project$Main$StartTimeAttack = {$: 'StartTimeAttack'};
 var $author$project$Main$SubmitAnswer = {$: 'SubmitAnswer'};
 var $author$project$Main$ToggleSFX = {$: 'ToggleSFX'};
 var $author$project$Main$ToggleSkippedProblems = {$: 'ToggleSkippedProblems'};
+var $author$project$Main$TriggerImport = {$: 'TriggerImport'};
 var $author$project$Main$UpdateInput = function (a) {
 	return {$: 'UpdateInput', a: a};
 };
@@ -9816,15 +9899,33 @@ var $author$project$Main$view = function (model) {
 										$elm$html$Html$text('尝试记录')
 									])),
 								A2(
-								$elm$html$Html$button,
+								$elm$html$Html$div,
+								_List_Nil,
 								_List_fromArray(
 									[
-										$elm$html$Html$Attributes$class('history-clear'),
-										$elm$html$Html$Events$onClick($author$project$Main$ClearHistory)
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('清除')
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('history-clear'),
+												$elm$html$Html$Events$onClick($author$project$Main$ExportData),
+												$elm$html$Html$Attributes$title('导出数据到剪贴板')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('导出')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('history-clear'),
+												$elm$html$Html$Events$onClick($author$project$Main$ClearHistory)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('清除')
+											]))
 									]))
 							])),
 						A2(
@@ -10360,11 +10461,32 @@ var $author$project$Main$view = function (model) {
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
+						$elm$html$Html$Attributes$class('buttons-row')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('btn btn-secondary'),
+								$elm$html$Html$Events$onClick($author$project$Main$TriggerImport),
+								$elm$html$Html$Attributes$title('从剪贴板导入备份数据')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('📥 导入数据')
+							]))
+					])),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
 						$elm$html$Html$Attributes$class('footer')
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩')
+						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.7')
 					]))
 			]));
 };
@@ -10376,10 +10498,15 @@ _Platform_export({'Main':{'init':$author$project$Main$main(
 		function (today) {
 			return A2(
 				$elm$json$Json$Decode$andThen,
-				function (hash) {
-					return $elm$json$Json$Decode$succeed(
-						{hash: hash, today: today});
+				function (prefersDark) {
+					return A2(
+						$elm$json$Json$Decode$andThen,
+						function (hash) {
+							return $elm$json$Json$Decode$succeed(
+								{hash: hash, prefersDark: prefersDark, today: today});
+						},
+						A2($elm$json$Json$Decode$field, 'hash', $elm$json$Json$Decode$string));
 				},
-				A2($elm$json$Json$Decode$field, 'hash', $elm$json$Json$Decode$string));
+				A2($elm$json$Json$Decode$field, 'prefersDark', $elm$json$Json$Decode$bool));
 		},
 		A2($elm$json$Json$Decode$field, 'today', $elm$json$Json$Decode$string)))(0)}});}(this));

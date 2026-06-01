@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>24点挑战 v0.4.6</title>
+  <title>24点挑战 v0.4.7</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.6">
+  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.7">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,7 +27,8 @@
   <script>
     (function() {
       var today = new Date().toISOString().split('T')[0];
-      var app = Elm.Main.init({ node: document.getElementById("elm"), flags: { today: today, hash: window.location.hash } });
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var app = Elm.Main.init({ node: document.getElementById("elm"), flags: { today: today, hash: window.location.hash, prefersDark: prefersDark } });
       var audioCtx = null;
       var sfxEnabled = true;
 
@@ -142,6 +143,22 @@
         var savedSFX = localStorage.getItem('24points-sfx');
         if (savedSFX !== null) sfxEnabled = savedSFX === '1';
       } catch(e) {}
+
+      app.ports.vibrate.subscribe(function(ms) {
+        if (navigator.vibrate) navigator.vibrate(ms);
+      });
+
+      app.ports.triggerImport.subscribe(function() {
+        var data = prompt('粘贴备份数据（JSON）：');
+        if (data) {
+          try {
+            JSON.parse(data);
+            app.ports.receiveFromStorage.send(data);
+          } catch(e) {
+            alert('无效的数据格式！');
+          }
+        }
+      });
 
       app.ports.spawnParticles.subscribe(function(count) {
         var container = document.getElementById('particles');
