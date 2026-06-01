@@ -83,6 +83,7 @@ type alias Model =
     , showTutorial : Bool
     , canInstallPWA : Bool
     , isOnline : Bool
+    , reduceMotion : Bool
     }
 
 type alias SkippedProblem =
@@ -143,6 +144,7 @@ type alias Flags =
     , hash : String
     , prefersDark : Bool
     , isFirstVisit : Bool
+    , prefersReducedMotion : Bool
     }
 
 
@@ -697,6 +699,7 @@ init flags =
             , showTutorial = flags.isFirstVisit
             , canInstallPWA = False
             , isOnline = True
+            , reduceMotion = flags.prefersReducedMotion
             }
     in
     case parseHashCards flags.hash of
@@ -1213,9 +1216,12 @@ update msg model =
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
 
         CardClick val ->
-            let newInput = model.input ++ String.fromInt val
-                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "key", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
+            if List.any (\c -> c.value == val) model.cards then
+                let newInput = model.input ++ String.fromInt val
+                    live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+                in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "key", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
+            else
+                ( model, Cmd.none )
 
         BackspaceInput ->
             let tokens = tokenize model.input
@@ -1610,6 +1616,11 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
 .daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }
 .daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }
+.daily-calendar { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+.daily-calendar-day { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; }
+.container.dark .daily-calendar-day { background: rgba(255,255,255,0.06); color: #8892b0; }
+.container.light .daily-calendar-day { background: rgba(0,0,0,0.04); color: #64748b; }
+.daily-calendar-day.completed { background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.2)) !important; color: #2ecc71 !important; }
 
 .rules { border-radius: 14px; padding: 20px; margin-top: 24px; }
 .container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
@@ -1774,6 +1785,15 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.light .tutorial-box p { color: #64748b; }
 .tutorial-box .btn { margin-top: 16px; }
 
+.reduce-motion .particle { display: none; }
+.reduce-motion .card { animation: none; }
+.reduce-motion .msg-pulse { animation: none; }
+.reduce-motion .msg-shake { animation: none; }
+.reduce-motion .combo-popup { animation: none; opacity: 0; }
+.reduce-motion .achievement-toast { animation: none; }
+.reduce-motion .pop-animation { animation: none; }
+.reduce-motion .stat-fire { animation: none; }
+
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
     .header { position: relative; }
@@ -1892,7 +1912,7 @@ view model =
         isDaily = model.gameMode == Daily
         isReview = model.gameMode == Review
     in
-    div [ class ("container " ++ themeClass) ]
+    div [ class ("container " ++ themeClass ++ if model.reduceMotion then " reduce-motion" else "") ]
         [ css model.theme
         , if model.showTutorial then
             div [ class "tutorial-overlay", onClick DismissTutorial ]
@@ -2104,6 +2124,10 @@ view model =
                     [ span [ class "daily-streak-num" ] [ text (String.fromInt (List.length model.dailyHistory)) ]
                     , span [ class "daily-streak-unit" ] [ text "天" ]
                     ]
+                , div [ class "daily-calendar" ]
+                    (List.map (\date ->
+                        div [ class "daily-calendar-day completed", title date ] [ text (String.right 2 date) ]
+                    ) (List.take 14 model.dailyHistory))
                 ]
           else
             text ""
