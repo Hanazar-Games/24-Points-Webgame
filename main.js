@@ -5632,6 +5632,7 @@ var $author$project$Main$init = function (flags) {
 		achievements: _List_Nil,
 		allSolutions: _List_Nil,
 		bestStreak: 0,
+		canInstallPWA: false,
 		cards: _List_Nil,
 		comboDisplay: $elm$core$Maybe$Nothing,
 		dailyBestTime: 0,
@@ -5646,6 +5647,7 @@ var $author$project$Main$init = function (flags) {
 		history: _List_Nil,
 		input: '',
 		inputHint: '',
+		isOnline: true,
 		keypadEnabled: true,
 		liveResult: '',
 		message: '点击「新游戏」开始24点挑战！',
@@ -5706,6 +5708,12 @@ var $author$project$Main$init = function (flags) {
 	}
 };
 var $elm$json$Json$Decode$string = _Json_decodeString;
+var $author$project$Main$InstallPromptChanged = function (a) {
+	return {$: 'InstallPromptChanged', a: a};
+};
+var $author$project$Main$NetworkChanged = function (a) {
+	return {$: 'NetworkChanged', a: a};
+};
 var $author$project$Main$StorageLoaded = function (a) {
 	return {$: 'StorageLoaded', a: a};
 };
@@ -6110,13 +6118,17 @@ var $elm$time$Time$every = F2(
 		return $elm$time$Time$subscription(
 			A2($elm$time$Time$Every, interval, tagger));
 	});
+var $author$project$Main$networkStatus = _Platform_incomingPort('networkStatus', $elm$json$Json$Decode$bool);
 var $author$project$Main$receiveFromStorage = _Platform_incomingPort('receiveFromStorage', $elm$json$Json$Decode$string);
+var $author$project$Main$trackInstallPrompt = _Platform_incomingPort('trackInstallPrompt', $elm$json$Json$Decode$bool);
 var $author$project$Main$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
 			[
 				A2($elm$time$Time$every, 1000, $author$project$Main$Tick),
-				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded)
+				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded),
+				$author$project$Main$trackInstallPrompt($author$project$Main$InstallPromptChanged),
+				$author$project$Main$networkStatus($author$project$Main$NetworkChanged)
 			]));
 };
 var $author$project$Main$Daily = {$: 'Daily'};
@@ -6657,6 +6669,10 @@ var $author$project$Main$ExtraData = F8(
 	function (timeAttackBest, dailyCompletedDate, dailyBestTime, fastestSolve, totalAttempts, keypadEnabled, sharedCount, stepsWithKeypad) {
 		return {dailyBestTime: dailyBestTime, dailyCompletedDate: dailyCompletedDate, fastestSolve: fastestSolve, keypadEnabled: keypadEnabled, sharedCount: sharedCount, stepsWithKeypad: stepsWithKeypad, timeAttackBest: timeAttackBest, totalAttempts: totalAttempts};
 	});
+var $author$project$Main$TimeAttackRecord = F3(
+	function (score, accuracy, date) {
+		return {accuracy: accuracy, date: date, score: score};
+	});
 var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
@@ -6687,6 +6703,32 @@ var $author$project$Main$themeDecoder = A2(
 	$elm$json$Json$Decode$string);
 var $author$project$Main$decodeStats = F2(
 	function (json, model) {
+		var timeAttackRecordDecoder = A4(
+			$elm$json$Json$Decode$map3,
+			$author$project$Main$TimeAttackRecord,
+			A2($elm$json$Json$Decode$field, 'score', $elm$json$Json$Decode$int),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault('N/A'),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'accuracy', $elm$json$Json$Decode$string))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(''),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'date', $elm$json$Json$Decode$string))));
+		var timeAttackHistoryDecoder = $elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					$elm$json$Json$Decode$list(timeAttackRecordDecoder),
+					A2(
+					$elm$json$Json$Decode$map,
+					$elm$core$List$map(
+						function (score) {
+							return {accuracy: 'N/A', date: '', score: score};
+						}),
+					$elm$json$Json$Decode$list($elm$json$Json$Decode$int))
+				]));
 		var extraDecoder = A9(
 			$elm$json$Json$Decode$map8,
 			$author$project$Main$ExtraData,
@@ -6817,10 +6859,7 @@ var $author$project$Main$decodeStats = F2(
 					$elm$json$Json$Decode$map,
 					$elm$core$Maybe$withDefault(_List_Nil),
 					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'timeAttackHistory',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$int)))),
+						A2($elm$json$Json$Decode$field, 'timeAttackHistory', timeAttackHistoryDecoder))),
 				A2(
 					$elm$json$Json$Decode$map,
 					$elm$core$Maybe$withDefault(_List_Nil),
@@ -6849,15 +6888,6 @@ var $author$project$Main$difficultyName = function (diff) {
 };
 var $elm$json$Json$Encode$bool = _Json_wrap;
 var $elm$json$Json$Encode$int = _Json_wrap;
-var $elm$json$Json$Encode$list = F2(
-	function (func, entries) {
-		return _Json_wrap(
-			A3(
-				$elm$core$List$foldl,
-				_Json_addEntry(func),
-				_Json_emptyArray(_Utils_Tuple0),
-				entries));
-	});
 var $elm$json$Json$Encode$object = function (pairs) {
 	return _Json_wrap(
 		A3(
@@ -6871,6 +6901,30 @@ var $elm$json$Json$Encode$object = function (pairs) {
 			_Json_emptyObject(_Utils_Tuple0),
 			pairs));
 };
+var $author$project$Main$encodeTimeAttackRecord = function (rec) {
+	return $elm$json$Json$Encode$object(
+		_List_fromArray(
+			[
+				_Utils_Tuple2(
+				'score',
+				$elm$json$Json$Encode$int(rec.score)),
+				_Utils_Tuple2(
+				'accuracy',
+				$elm$json$Json$Encode$string(rec.accuracy)),
+				_Utils_Tuple2(
+				'date',
+				$elm$json$Json$Encode$string(rec.date))
+			]));
+};
+var $elm$json$Json$Encode$list = F2(
+	function (func, entries) {
+		return _Json_wrap(
+			A3(
+				$elm$core$List$foldl,
+				_Json_addEntry(func),
+				_Json_emptyArray(_Utils_Tuple0),
+				entries));
+	});
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
 		takeReverse:
@@ -7062,7 +7116,10 @@ var $author$project$Main$encodeStats = function (model) {
 					$elm$json$Json$Encode$int(model.sharedCount)),
 					_Utils_Tuple2(
 					'stepsWithKeypad',
-					$elm$json$Json$Encode$int(model.stepsWithKeypad))
+					$elm$json$Json$Encode$int(model.stepsWithKeypad)),
+					_Utils_Tuple2(
+					'timeAttackHistory',
+					A2($elm$json$Json$Encode$list, $author$project$Main$encodeTimeAttackRecord, model.timeAttackHistory))
 				])));
 };
 var $author$project$Main$exprHasDiv = function (e) {
@@ -7943,6 +8000,11 @@ var $author$project$Main$requestWakeLock = _Platform_outgoingPort(
 	});
 var $author$project$Main$setHash = _Platform_outgoingPort('setHash', $elm$json$Json$Encode$string);
 var $author$project$Main$setSFX = _Platform_outgoingPort('setSFX', $elm$json$Json$Encode$bool);
+var $author$project$Main$showInstallPrompt = _Platform_outgoingPort(
+	'showInstallPrompt',
+	function ($) {
+		return $elm$json$Json$Encode$null;
+	});
 var $author$project$Main$cacheKey = function (nums) {
 	return A2(
 		$elm$core$String$join,
@@ -8543,17 +8605,18 @@ var $author$project$Main$update = F2(
 						var isNewRecord = (_Utils_cmp(finalScore, model.timeAttackBest) > 0) && (finalScore > 0);
 						var recordMsg = isNewRecord ? ' 🎉 新纪录！' : '';
 						var newBest = A2($elm$core$Basics$max, finalScore, model.timeAttackBest);
+						var totalTA = finalScore + model.skipped;
+						var accuracyStr = (!totalTA) ? 'N/A' : ($elm$core$String$fromInt(
+							$elm$core$Basics$round((finalScore / totalTA) * 100)) + '%');
+						var newRecord = {accuracy: accuracyStr, date: model.dailyDate, score: finalScore};
 						var newHistory = A2(
 							$elm$core$List$cons,
-							finalScore,
+							newRecord,
 							A2($elm$core$List$take, 9, model.timeAttackHistory));
-						var totalTA = finalScore + model.skipped;
-						var accuracy = (!totalTA) ? 'N/A' : ($elm$core$String$fromInt(
-							$elm$core$Basics$round((finalScore / totalTA) * 100)) + '%');
 						var gameOverModel = _Utils_update(
 							model,
 							{
-								message: '时间到！得分：' + ($elm$core$String$fromInt(finalScore) + (' | 准确率：' + (accuracy + (' | 最佳：' + ($elm$core$String$fromInt(newBest) + recordMsg))))),
+								message: '时间到！得分：' + ($elm$core$String$fromInt(finalScore) + (' | 准确率：' + (accuracyStr + (' | 最佳：' + ($elm$core$String$fromInt(newBest) + recordMsg))))),
 								messageType: $author$project$Main$Info,
 								pendingNewCards: false,
 								timeAttackBest: newBest,
@@ -8919,6 +8982,25 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					newModel,
 					$author$project$Main$saveCmd(newModel));
+			case 'InstallPWA':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{canInstallPWA: false}),
+					$author$project$Main$showInstallPrompt(_Utils_Tuple0));
+			case 'InstallPromptChanged':
+				var canInstall = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{canInstallPWA: canInstall}),
+					$elm$core$Platform$Cmd$none);
+			case 'NetworkChanged':
+				var online = msg.a;
+				var newModel = _Utils_update(
+					model,
+					{isOnline: online});
+				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
@@ -8938,6 +9020,7 @@ var $author$project$Main$DismissTutorial = {$: 'DismissTutorial'};
 var $author$project$Main$Easy = {$: 'Easy'};
 var $author$project$Main$ExportData = {$: 'ExportData'};
 var $author$project$Main$HideSteps = {$: 'HideSteps'};
+var $author$project$Main$InstallPWA = {$: 'InstallPWA'};
 var $author$project$Main$NewGame = {$: 'NewGame'};
 var $author$project$Main$SetGameMode = function (a) {
 	return {$: 'SetGameMode', a: a};
@@ -9576,8 +9659,31 @@ var $author$project$Main$view = function (model) {
 							[
 								$elm$html$Html$text(
 								model.sfxEnabled ? '音效开' : '音效关')
-							]))
+							])),
+						model.canInstallPWA ? A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('sfx-toggle'),
+								$elm$html$Html$Events$onClick($author$project$Main$InstallPWA),
+								A2($elm$html$Html$Attributes$style, 'right', '80px'),
+								$elm$html$Html$Attributes$title('安装为本地应用')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('📲 安装')
+							])) : $elm$html$Html$text('')
 					])),
+				(!model.isOnline) ? A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('message msg-error')
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text('⚠️ 当前处于离线状态')
+					])) : $elm$html$Html$text(''),
 				A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -10409,18 +10515,20 @@ var $author$project$Main$view = function (model) {
 						A2(
 							$elm$core$List$indexedMap,
 							F2(
-								function (i, score) {
+								function (i, rec) {
 									return A2(
 										$elm$html$Html$div,
 										_List_fromArray(
 											[
 												$elm$html$Html$Attributes$class(
-												(!i) ? 'ta-score best' : 'ta-score')
+												(!i) ? 'ta-score best' : 'ta-score'),
+												$elm$html$Html$Attributes$title(
+												'准确率: ' + (rec.accuracy + ($elm$core$String$isEmpty(rec.date) ? '' : (' | 日期: ' + rec.date))))
 											]),
 										_List_fromArray(
 											[
 												$elm$html$Html$text(
-												$elm$core$String$fromInt(score))
+												$elm$core$String$fromInt(rec.score))
 											]));
 								}),
 							model.timeAttackHistory))

@@ -77,10 +77,12 @@ type alias Model =
     , shieldActive : Bool
     , showSteps : Bool
     , stepByStep : List SolveStep
-    , timeAttackHistory : List Int
+    , timeAttackHistory : List TimeAttackRecord
     , inputHint : String
     , dailyHistory : List String
     , showTutorial : Bool
+    , canInstallPWA : Bool
+    , isOnline : Bool
     }
 
 type alias SkippedProblem =
@@ -91,6 +93,12 @@ type alias SkippedProblem =
 type alias SolveStep =
     { before : String
     , result : Float
+    }
+
+type alias TimeAttackRecord =
+    { score : Int
+    , accuracy : String
+    , date : String
     }
 
 type Msg
@@ -125,6 +133,9 @@ type Msg
     | TriggerImport
     | DismissTutorial
     | StartReview
+    | InstallPWA
+    | InstallPromptChanged Bool
+    | NetworkChanged Bool
     | NoOp
 
 type alias Flags =
@@ -149,6 +160,9 @@ port vibrate : Int -> Cmd msg
 port triggerImport : () -> Cmd msg
 port requestWakeLock : () -> Cmd msg
 port releaseWakeLock : () -> Cmd msg
+port showInstallPrompt : () -> Cmd msg
+port trackInstallPrompt : (Bool -> msg) -> Sub msg
+port networkStatus : (Bool -> msg) -> Sub msg
 
 
 -- ============ EXPRESSION PARSER ============
@@ -681,6 +695,8 @@ init flags =
             , inputHint = ""
             , dailyHistory = []
             , showTutorial = flags.isFirstVisit
+            , canInstallPWA = False
+            , isOnline = True
             }
     in
     case parseHashCards flags.hash of
@@ -709,6 +725,15 @@ themeDecoder =
             _ -> D.succeed Dark
     )
 
+encodeTimeAttackRecord : TimeAttackRecord -> E.Value
+encodeTimeAttackRecord rec =
+    E.object
+        [ ("score", E.int rec.score)
+        , ("accuracy", E.string rec.accuracy)
+        , ("date", E.string rec.date)
+        ]
+
+
 encodeStats : Model -> String
 encodeStats model =
     E.encode 0
@@ -729,6 +754,7 @@ encodeStats model =
             , ("keypadEnabled", E.bool model.keypadEnabled)
             , ("sharedCount", E.int model.sharedCount)
             , ("stepsWithKeypad", E.int model.stepsWithKeypad)
+            , ("timeAttackHistory", E.list encodeTimeAttackRecord model.timeAttackHistory)
             ]
         )
 
@@ -778,6 +804,18 @@ decodeStats json model =
                 (D.maybe (D.field "sharedCount" D.int) |> D.map (Maybe.withDefault 0))
                 (D.maybe (D.field "stepsWithKeypad" D.int) |> D.map (Maybe.withDefault 0))
         
+        timeAttackRecordDecoder =
+            D.map3 TimeAttackRecord
+                (D.field "score" D.int)
+                (D.maybe (D.field "accuracy" D.string) |> D.map (Maybe.withDefault "N/A"))
+                (D.maybe (D.field "date" D.string) |> D.map (Maybe.withDefault ""))
+
+        timeAttackHistoryDecoder =
+            D.oneOf
+                [ D.list timeAttackRecordDecoder
+                , D.list D.int |> D.map (List.map (\score -> { score = score, accuracy = "N/A", date = "" }))
+                ]
+
         fullDecoder =
             D.map3
                 (\base extra (tah, dh) ->
@@ -805,7 +843,7 @@ decodeStats json model =
                 baseDecoder
                 extraDecoder
                 (D.map2 Tuple.pair
-                    (D.maybe (D.field "timeAttackHistory" (D.list D.int)) |> D.map (Maybe.withDefault []))
+                    (D.maybe (D.field "timeAttackHistory" timeAttackHistoryDecoder) |> D.map (Maybe.withDefault []))
                     (D.maybe (D.field "dailyHistory" (D.list D.string)) |> D.map (Maybe.withDefault []))
                 )
     in
@@ -1073,12 +1111,13 @@ update msg model =
                     if model.timeLeft <= 1 then
                         let finalScore = model.timeAttackScore
                             newBest = max finalScore model.timeAttackBest
-                            newHistory = finalScore :: List.take 9 model.timeAttackHistory
+                            totalTA = finalScore + model.skipped
+                            accuracyStr = if totalTA == 0 then "N/A" else String.fromInt (round (toFloat finalScore / toFloat totalTA * 100)) ++ "%"
+                            newRecord = { score = finalScore, accuracy = accuracyStr, date = model.dailyDate }
+                            newHistory = newRecord :: List.take 9 model.timeAttackHistory
                             isNewRecord = finalScore > model.timeAttackBest && finalScore > 0
                             recordMsg = if isNewRecord then " 🎉 新纪录！" else ""
-                            totalTA = finalScore + model.skipped
-                            accuracy = if totalTA == 0 then "N/A" else String.fromInt (round (toFloat finalScore / toFloat totalTA * 100)) ++ "%"
-                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！得分：" ++ String.fromInt finalScore ++ " | 准确率：" ++ accuracy ++ " | 最佳：" ++ String.fromInt newBest ++ recordMsg, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
+                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！得分：" ++ String.fromInt finalScore ++ " | 准确率：" ++ accuracyStr ++ " | 最佳：" ++ String.fromInt newBest ++ recordMsg, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
                         in
                         ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error", vibrate 300, releaseWakeLock () ] )
                     else
@@ -1229,6 +1268,16 @@ update msg model =
         DismissTutorial ->
             let newModel = { model | showTutorial = False }
             in ( newModel, saveCmd newModel )
+
+        InstallPWA ->
+            ( { model | canInstallPWA = False }, showInstallPrompt () )
+
+        InstallPromptChanged canInstall ->
+            ( { model | canInstallPWA = canInstall }, Cmd.none )
+
+        NetworkChanged online ->
+            let newModel = { model | isOnline = online }
+            in ( newModel, Cmd.none )
 
         NoOp -> (model, Cmd.none )
 
@@ -1426,6 +1475,8 @@ subscriptions model =
     Sub.batch
         [ Time.every 1000 Tick
         , receiveFromStorage StorageLoaded
+        , trackInstallPrompt InstallPromptChanged
+        , networkStatus NetworkChanged
         ]
 
 
@@ -1864,7 +1915,15 @@ view model =
             , p [] [ text "用加减乘除和括号，让四张牌算出 24" ]
             , button [ class "sfx-toggle", onClick ToggleSFX ]
                 [ text (if model.sfxEnabled then "音效开" else "音效关") ]
+            , if model.canInstallPWA then
+                button [ class "sfx-toggle", onClick InstallPWA, style "right" "80px", title "安装为本地应用" ] [ text "📲 安装" ]
+              else
+                text ""
             ]
+        , if not model.isOnline then
+            div [ class "message msg-error" ] [ text "⚠️ 当前处于离线状态" ]
+          else
+            text ""
         , div [ class "mode-row" ]
             [ button [ class (if model.gameMode == Classic then "mode-btn active" else "mode-btn"), onClick (SetGameMode Classic) ] [ text "经典" ]
             , button [ class (if model.gameMode == Daily then "mode-btn active" else "mode-btn"), onClick (SetGameMode Daily) ]
@@ -2014,8 +2073,8 @@ view model =
             div [ class "ta-history" ]
                 [ div [ class "ta-history-title" ] [ text "历史得分" ]
                 , div [ class "ta-scores" ]
-                    (List.indexedMap (\i score ->
-                        div [ class (if i == 0 then "ta-score best" else "ta-score") ] [ text (String.fromInt score) ]
+                    (List.indexedMap (\i rec ->
+                        div [ class (if i == 0 then "ta-score best" else "ta-score"), title ("准确率: " ++ rec.accuracy ++ if String.isEmpty rec.date then "" else " | 日期: " ++ rec.date) ] [ text (String.fromInt rec.score) ]
                     ) model.timeAttackHistory)
                 ]
           else
