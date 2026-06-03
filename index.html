@@ -2,10 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>24点挑战 v0.4.11</title>
+  <title>24点挑战 v0.4.12</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.11">
+  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.12">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -152,7 +152,10 @@
       // Restore SFX setting
       try {
         var savedSFX = localStorage.getItem('24points-sfx');
-        if (savedSFX !== null) sfxEnabled = savedSFX === '1';
+        if (savedSFX !== null) {
+          sfxEnabled = savedSFX === '1';
+          app.ports.receiveSFXSetting.send(sfxEnabled);
+        }
       } catch(e) {}
 
       app.ports.vibrate.subscribe(function(ms) {

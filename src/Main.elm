@@ -75,6 +75,7 @@ type alias Model =
     , showSkippedProblems : Bool
     , solverCache : Dict.Dict String (List String)
     , comboDisplay : Maybe Int
+    , comboTimer : Int
     , shieldActive : Bool
     , showSteps : Bool
     , stepByStep : List SolveStep
@@ -128,7 +129,6 @@ type Msg
     | ToggleKeypad
     | ShareProblem
     | ToggleSkippedProblems
-    | ClearCombo
     | ShowSteps
     | HideSteps
     | ExportData
@@ -138,6 +138,7 @@ type Msg
     | InstallPWA
     | InstallPromptChanged Bool
     | NetworkChanged Bool
+    | ReceiveSFXSetting Bool
     | NoOp
 
 type alias Flags =
@@ -157,6 +158,7 @@ port receiveFromStorage : (String -> msg) -> Sub msg
 port playSound : String -> Cmd msg
 port spawnParticles : Int -> Cmd msg
 port setSFX : Bool -> Cmd msg
+port receiveSFXSetting : (Bool -> msg) -> Sub msg
 port copyToClipboard : String -> Cmd msg
 port setHash : String -> Cmd msg
 port vibrate : Int -> Cmd msg
@@ -692,6 +694,7 @@ init flags =
             , showSkippedProblems = False
             , solverCache = Dict.empty
             , comboDisplay = Nothing
+            , comboTimer = 0
             , shieldActive = False
             , showSteps = False
             , stepByStep = []
@@ -829,9 +832,9 @@ decodeStats json model =
                         , solved = max model.solved base.totalSolved
                         , skipped = max model.skipped base.totalSkipped
                         , totalTime = max model.totalTime base.totalTime
-                        , achievements = base.achievements
+                        , achievements = unique (model.achievements ++ base.achievements)
                         , sfxEnabled = base.sfxEnabled
-                        , history = base.history
+                        , history = List.take 20 (model.history ++ base.history)
                         , theme = base.theme
                         , timeAttackBest = max model.timeAttackBest extra.timeAttackBest
                         , dailyCompleted = (extra.dailyCompletedDate == model.dailyDate)
@@ -958,9 +961,15 @@ update msg model =
                 (solutions, newCache) = solve24Cached model.solverCache cardFloats
             in
             if List.isEmpty solutions then
-                ( { model | solverCache = newCache }, generateCards model.difficulty )
+                if model.gameMode == Daily then
+                    ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
+                else
+                    ( { model | solverCache = newCache }, generateCards model.difficulty )
             else if model.difficulty == Hard && not (hasDivisionSolution solutions) then
-                ( { model | solverCache = newCache }, generateCards model.difficulty )
+                if model.gameMode == Daily then
+                    ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
+                else
+                    ( { model | solverCache = newCache }, generateCards model.difficulty )
             else
                 let isFirstGame = model.totalGames == 0
                     baseMsg = case model.gameMode of
@@ -1138,12 +1147,16 @@ update msg model =
                         newTotalTime = model.totalTime + 1
                         newAchTimer = max 0 (model.achievementTimer - 1)
                         clearedAch = if newAchTimer == 0 && model.achievementTimer > 0 then [] else model.newAchievements
+                        newComboTimer = max 0 (model.comboTimer - 1)
+                        clearedCombo = if newComboTimer == 0 && model.comboTimer > 0 then Nothing else model.comboDisplay
                     in
                     ( { model
                         | timer = newTimer
                         , totalTime = newTotalTime
                         , achievementTimer = newAchTimer
                         , newAchievements = clearedAch
+                        , comboTimer = newComboTimer
+                        , comboDisplay = clearedCombo
                       }
                     , Cmd.none
                     )
@@ -1246,9 +1259,6 @@ update msg model =
         ToggleSkippedProblems ->
             ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
 
-        ClearCombo ->
-            ( { model | comboDisplay = Nothing }, Cmd.none )
-
         ShowSteps ->
             let steps = case List.head model.allSolutions of
                     Nothing -> []
@@ -1289,11 +1299,10 @@ update msg model =
             let newModel = { model | isOnline = online }
             in ( newModel, Cmd.none )
 
+        ReceiveSFXSetting enabled ->
+            ( { model | sfxEnabled = enabled }, Cmd.none )
+
         NoOp -> (model, Cmd.none )
-
-
-clearComboCmd : Cmd Msg
-clearComboCmd = Task.perform (\_ -> ClearCombo) (Process.sleep 1500)
 
 
 handleCorrect : Model -> (Model, Cmd Msg)
@@ -1337,6 +1346,7 @@ handleCorrect model =
                     , newAchievements = newAch
                     , achievementTimer = if hasNewAch then 5 else 0
                     , comboDisplay = Just newStreak
+                    , comboTimer = 2
                     , shieldActive = newShield
                     }
                 sfx =
@@ -1345,7 +1355,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
             )
         Daily ->
             let newStreak = model.streak + 1
@@ -1377,6 +1387,7 @@ handleCorrect model =
                     , fastestSolve = newFastest
                     , stepsWithKeypad = newStepsWithKeypad
                     , comboDisplay = Just newStreak
+                    , comboTimer = 2
                     , shieldActive = newShield
                     , dailyHistory = newDailyHistory
                     }
@@ -1386,7 +1397,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
             )
         Classic ->
             let newStreak = model.streak + 1
@@ -1412,6 +1423,7 @@ handleCorrect model =
                     , fastestSolve = newFastest
                     , stepsWithKeypad = newStepsWithKeypad
                     , comboDisplay = Just newStreak
+                    , comboTimer = 2
                     , shieldActive = newShield
                     }
                 sfx =
@@ -1420,7 +1432,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
             )
         Review ->
             let newStreak = model.streak + 1
@@ -1448,6 +1460,7 @@ handleCorrect model =
                     , fastestSolve = newFastest
                     , stepsWithKeypad = newStepsWithKeypad
                     , comboDisplay = Just newStreak
+                    , comboTimer = 2
                     , shieldActive = newShield
                     , skippedProblems = newSkippedProblems
                     }
@@ -1457,7 +1470,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
             )
 
 
@@ -1525,6 +1538,7 @@ subscriptions model =
         , receiveFromStorage StorageLoaded
         , trackInstallPrompt InstallPromptChanged
         , networkStatus NetworkChanged
+        , receiveSFXSetting ReceiveSFXSetting
         ]
 
 

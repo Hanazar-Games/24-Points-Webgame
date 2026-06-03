@@ -5635,6 +5635,7 @@ var $author$project$Main$init = function (flags) {
 		canInstallPWA: false,
 		cards: _List_Nil,
 		comboDisplay: $elm$core$Maybe$Nothing,
+		comboTimer: 0,
 		dailyBestTime: 0,
 		dailyCompleted: false,
 		dailyDate: flags.today,
@@ -5715,6 +5716,9 @@ var $author$project$Main$InstallPromptChanged = function (a) {
 };
 var $author$project$Main$NetworkChanged = function (a) {
 	return {$: 'NetworkChanged', a: a};
+};
+var $author$project$Main$ReceiveSFXSetting = function (a) {
+	return {$: 'ReceiveSFXSetting', a: a};
 };
 var $author$project$Main$StorageLoaded = function (a) {
 	return {$: 'StorageLoaded', a: a};
@@ -6122,6 +6126,7 @@ var $elm$time$Time$every = F2(
 	});
 var $author$project$Main$networkStatus = _Platform_incomingPort('networkStatus', $elm$json$Json$Decode$bool);
 var $author$project$Main$receiveFromStorage = _Platform_incomingPort('receiveFromStorage', $elm$json$Json$Decode$string);
+var $author$project$Main$receiveSFXSetting = _Platform_incomingPort('receiveSFXSetting', $elm$json$Json$Decode$bool);
 var $author$project$Main$trackInstallPrompt = _Platform_incomingPort('trackInstallPrompt', $elm$json$Json$Decode$bool);
 var $author$project$Main$subscriptions = function (model) {
 	return $elm$core$Platform$Sub$batch(
@@ -6130,7 +6135,8 @@ var $author$project$Main$subscriptions = function (model) {
 				A2($elm$time$Time$every, 1000, $author$project$Main$Tick),
 				$author$project$Main$receiveFromStorage($author$project$Main$StorageLoaded),
 				$author$project$Main$trackInstallPrompt($author$project$Main$InstallPromptChanged),
-				$author$project$Main$networkStatus($author$project$Main$NetworkChanged)
+				$author$project$Main$networkStatus($author$project$Main$NetworkChanged),
+				$author$project$Main$receiveSFXSetting($author$project$Main$ReceiveSFXSetting)
 			]));
 };
 var $author$project$Main$Daily = {$: 'Daily'};
@@ -6693,6 +6699,132 @@ var $elm$core$Tuple$pair = F2(
 	function (a, b) {
 		return _Utils_Tuple2(a, b);
 	});
+var $elm$core$List$takeReverse = F3(
+	function (n, list, kept) {
+		takeReverse:
+		while (true) {
+			if (n <= 0) {
+				return kept;
+			} else {
+				if (!list.b) {
+					return kept;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs,
+						$temp$kept = A2($elm$core$List$cons, x, kept);
+					n = $temp$n;
+					list = $temp$list;
+					kept = $temp$kept;
+					continue takeReverse;
+				}
+			}
+		}
+	});
+var $elm$core$List$takeTailRec = F2(
+	function (n, list) {
+		return $elm$core$List$reverse(
+			A3($elm$core$List$takeReverse, n, list, _List_Nil));
+	});
+var $elm$core$List$takeFast = F3(
+	function (ctr, n, list) {
+		if (n <= 0) {
+			return _List_Nil;
+		} else {
+			var _v0 = _Utils_Tuple2(n, list);
+			_v0$1:
+			while (true) {
+				_v0$5:
+				while (true) {
+					if (!_v0.b.b) {
+						return list;
+					} else {
+						if (_v0.b.b.b) {
+							switch (_v0.a) {
+								case 1:
+									break _v0$1;
+								case 2:
+									var _v2 = _v0.b;
+									var x = _v2.a;
+									var _v3 = _v2.b;
+									var y = _v3.a;
+									return _List_fromArray(
+										[x, y]);
+								case 3:
+									if (_v0.b.b.b.b) {
+										var _v4 = _v0.b;
+										var x = _v4.a;
+										var _v5 = _v4.b;
+										var y = _v5.a;
+										var _v6 = _v5.b;
+										var z = _v6.a;
+										return _List_fromArray(
+											[x, y, z]);
+									} else {
+										break _v0$5;
+									}
+								default:
+									if (_v0.b.b.b.b && _v0.b.b.b.b.b) {
+										var _v7 = _v0.b;
+										var x = _v7.a;
+										var _v8 = _v7.b;
+										var y = _v8.a;
+										var _v9 = _v8.b;
+										var z = _v9.a;
+										var _v10 = _v9.b;
+										var w = _v10.a;
+										var tl = _v10.b;
+										return (ctr > 1000) ? A2(
+											$elm$core$List$cons,
+											x,
+											A2(
+												$elm$core$List$cons,
+												y,
+												A2(
+													$elm$core$List$cons,
+													z,
+													A2(
+														$elm$core$List$cons,
+														w,
+														A2($elm$core$List$takeTailRec, n - 4, tl))))) : A2(
+											$elm$core$List$cons,
+											x,
+											A2(
+												$elm$core$List$cons,
+												y,
+												A2(
+													$elm$core$List$cons,
+													z,
+													A2(
+														$elm$core$List$cons,
+														w,
+														A3($elm$core$List$takeFast, ctr + 1, n - 4, tl)))));
+									} else {
+										break _v0$5;
+									}
+							}
+						} else {
+							if (_v0.a === 1) {
+								break _v0$1;
+							} else {
+								break _v0$5;
+							}
+						}
+					}
+				}
+				return list;
+			}
+			var _v1 = _v0.b;
+			var x = _v1.a;
+			return _List_fromArray(
+				[x]);
+		}
+	});
+var $elm$core$List$take = F2(
+	function (n, list) {
+		return A3($elm$core$List$takeFast, 0, n, list);
+	});
 var $author$project$Main$themeDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	function (s) {
@@ -6703,6 +6835,27 @@ var $author$project$Main$themeDecoder = A2(
 		}
 	},
 	$elm$json$Json$Decode$string);
+var $elm$core$Set$Set_elm_builtin = function (a) {
+	return {$: 'Set_elm_builtin', a: a};
+};
+var $elm$core$Set$empty = $elm$core$Set$Set_elm_builtin($elm$core$Dict$empty);
+var $elm$core$Set$insert = F2(
+	function (key, _v0) {
+		var dict = _v0.a;
+		return $elm$core$Set$Set_elm_builtin(
+			A3($elm$core$Dict$insert, key, _Utils_Tuple0, dict));
+	});
+var $author$project$Main$unique = function (list) {
+	return $elm$core$Set$toList(
+		A3(
+			$elm$core$List$foldl,
+			F2(
+				function (x, set) {
+					return A2($elm$core$Set$insert, x, set);
+				}),
+			$elm$core$Set$empty,
+			list));
+};
 var $author$project$Main$decodeStats = F2(
 	function (json, model) {
 		var timeAttackRecordDecoder = A4(
@@ -6832,13 +6985,17 @@ var $author$project$Main$decodeStats = F2(
 					return _Utils_update(
 						model,
 						{
-							achievements: base.achievements,
+							achievements: $author$project$Main$unique(
+								_Utils_ap(model.achievements, base.achievements)),
 							bestStreak: A2($elm$core$Basics$max, model.bestStreak, base.bestStreak),
 							dailyBestTime: A2($elm$core$Basics$max, model.dailyBestTime, extra.dailyBestTime),
 							dailyCompleted: _Utils_eq(extra.dailyCompletedDate, model.dailyDate),
 							dailyHistory: dh,
 							fastestSolve: (extra.fastestSolve > 0) ? extra.fastestSolve : model.fastestSolve,
-							history: base.history,
+							history: A2(
+								$elm$core$List$take,
+								20,
+								_Utils_ap(model.history, base.history)),
 							keypadEnabled: extra.keypadEnabled,
 							sfxEnabled: base.sfxEnabled,
 							sharedCount: A2($elm$core$Basics$max, model.sharedCount, extra.sharedCount),
@@ -6926,132 +7083,6 @@ var $elm$json$Json$Encode$list = F2(
 				_Json_addEntry(func),
 				_Json_emptyArray(_Utils_Tuple0),
 				entries));
-	});
-var $elm$core$List$takeReverse = F3(
-	function (n, list, kept) {
-		takeReverse:
-		while (true) {
-			if (n <= 0) {
-				return kept;
-			} else {
-				if (!list.b) {
-					return kept;
-				} else {
-					var x = list.a;
-					var xs = list.b;
-					var $temp$n = n - 1,
-						$temp$list = xs,
-						$temp$kept = A2($elm$core$List$cons, x, kept);
-					n = $temp$n;
-					list = $temp$list;
-					kept = $temp$kept;
-					continue takeReverse;
-				}
-			}
-		}
-	});
-var $elm$core$List$takeTailRec = F2(
-	function (n, list) {
-		return $elm$core$List$reverse(
-			A3($elm$core$List$takeReverse, n, list, _List_Nil));
-	});
-var $elm$core$List$takeFast = F3(
-	function (ctr, n, list) {
-		if (n <= 0) {
-			return _List_Nil;
-		} else {
-			var _v0 = _Utils_Tuple2(n, list);
-			_v0$1:
-			while (true) {
-				_v0$5:
-				while (true) {
-					if (!_v0.b.b) {
-						return list;
-					} else {
-						if (_v0.b.b.b) {
-							switch (_v0.a) {
-								case 1:
-									break _v0$1;
-								case 2:
-									var _v2 = _v0.b;
-									var x = _v2.a;
-									var _v3 = _v2.b;
-									var y = _v3.a;
-									return _List_fromArray(
-										[x, y]);
-								case 3:
-									if (_v0.b.b.b.b) {
-										var _v4 = _v0.b;
-										var x = _v4.a;
-										var _v5 = _v4.b;
-										var y = _v5.a;
-										var _v6 = _v5.b;
-										var z = _v6.a;
-										return _List_fromArray(
-											[x, y, z]);
-									} else {
-										break _v0$5;
-									}
-								default:
-									if (_v0.b.b.b.b && _v0.b.b.b.b.b) {
-										var _v7 = _v0.b;
-										var x = _v7.a;
-										var _v8 = _v7.b;
-										var y = _v8.a;
-										var _v9 = _v8.b;
-										var z = _v9.a;
-										var _v10 = _v9.b;
-										var w = _v10.a;
-										var tl = _v10.b;
-										return (ctr > 1000) ? A2(
-											$elm$core$List$cons,
-											x,
-											A2(
-												$elm$core$List$cons,
-												y,
-												A2(
-													$elm$core$List$cons,
-													z,
-													A2(
-														$elm$core$List$cons,
-														w,
-														A2($elm$core$List$takeTailRec, n - 4, tl))))) : A2(
-											$elm$core$List$cons,
-											x,
-											A2(
-												$elm$core$List$cons,
-												y,
-												A2(
-													$elm$core$List$cons,
-													z,
-													A2(
-														$elm$core$List$cons,
-														w,
-														A3($elm$core$List$takeFast, ctr + 1, n - 4, tl)))));
-									} else {
-										break _v0$5;
-									}
-							}
-						} else {
-							if (_v0.a === 1) {
-								break _v0$1;
-							} else {
-								break _v0$5;
-							}
-						}
-					}
-				}
-				return list;
-			}
-			var _v1 = _v0.b;
-			var x = _v1.a;
-			return _List_fromArray(
-				[x]);
-		}
-	});
-var $elm$core$List$take = F2(
-	function (n, list) {
-		return A3($elm$core$List$takeFast, 0, n, list);
 	});
 var $author$project$Main$themeEncoder = function (t) {
 	if (t.$ === 'Dark') {
@@ -7331,27 +7362,6 @@ var $author$project$Main$simplifySolution = function (s) {
 		return s;
 	}
 };
-var $elm$core$Set$Set_elm_builtin = function (a) {
-	return {$: 'Set_elm_builtin', a: a};
-};
-var $elm$core$Set$empty = $elm$core$Set$Set_elm_builtin($elm$core$Dict$empty);
-var $elm$core$Set$insert = F2(
-	function (key, _v0) {
-		var dict = _v0.a;
-		return $elm$core$Set$Set_elm_builtin(
-			A3($elm$core$Dict$insert, key, _Utils_Tuple0, dict));
-	});
-var $author$project$Main$unique = function (list) {
-	return $elm$core$Set$toList(
-		A3(
-			$elm$core$List$foldl,
-			F2(
-				function (x, set) {
-					return A2($elm$core$Set$insert, x, set);
-				}),
-			$elm$core$Set$empty,
-			list));
-};
 var $author$project$Main$solve24 = function (nums) {
 	var initVals = A2(
 		$elm$core$List$map,
@@ -7550,14 +7560,6 @@ var $author$project$Main$checkAchievements = function (model) {
 		},
 		all);
 };
-var $author$project$Main$ClearCombo = {$: 'ClearCombo'};
-var $elm$core$Process$sleep = _Process_sleep;
-var $author$project$Main$clearComboCmd = A2(
-	$elm$core$Task$perform,
-	function (_v0) {
-		return $author$project$Main$ClearCombo;
-	},
-	$elm$core$Process$sleep(1500));
 var $author$project$Main$countOps = function (e) {
 	switch (e.$) {
 		case 'Num':
@@ -7587,6 +7589,7 @@ var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
 		$author$project$Main$encodeStats(model));
 };
+var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
 var $author$project$Main$vibrate = _Platform_outgoingPort('vibrate', $elm$json$Json$Encode$int);
 var $author$project$Main$handleCorrect = function (model) {
@@ -7630,6 +7633,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					achievements: _Utils_ap(model.achievements, newAch),
 					bestStreak: newBestStreak,
 					comboDisplay: $elm$core$Maybe$Just(newStreak),
+					comboTimer: 2,
 					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
@@ -7682,8 +7686,7 @@ var $author$project$Main$handleCorrect = function (model) {
 								function (_v2) {
 									return $author$project$Main$NoOp;
 								},
-								$elm$browser$Browser$Dom$focus('expr-input')),
-								$author$project$Main$clearComboCmd
+								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
 		case 'Daily':
@@ -7709,6 +7712,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					achievements: _Utils_ap(model.achievements, newAch),
 					bestStreak: newBestStreak,
 					comboDisplay: $elm$core$Maybe$Just(newStreak),
+					comboTimer: 2,
 					dailyBestTime: newDailyBestTime,
 					dailyCompleted: newDailyCompleted,
 					dailyHistory: newDailyHistory,
@@ -7762,8 +7766,7 @@ var $author$project$Main$handleCorrect = function (model) {
 								function (_v4) {
 									return $author$project$Main$NoOp;
 								},
-								$elm$browser$Browser$Dom$focus('expr-input')),
-								$author$project$Main$clearComboCmd
+								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
 		case 'Classic':
@@ -7785,6 +7788,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					achievements: _Utils_ap(model.achievements, newAch),
 					bestStreak: newBestStreak,
 					comboDisplay: $elm$core$Maybe$Just(newStreak),
+					comboTimer: 2,
 					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
@@ -7835,8 +7839,7 @@ var $author$project$Main$handleCorrect = function (model) {
 								function (_v6) {
 									return $author$project$Main$NoOp;
 								},
-								$elm$browser$Browser$Dom$focus('expr-input')),
-								$author$project$Main$clearComboCmd
+								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
 		default:
@@ -7888,6 +7891,7 @@ var $author$project$Main$handleCorrect = function (model) {
 					achievements: _Utils_ap(model.achievements, newAch),
 					bestStreak: newBestStreak,
 					comboDisplay: $elm$core$Maybe$Just(newStreak),
+					comboTimer: 2,
 					fastestSolve: newFastest,
 					hintLevel: 0,
 					history: newHistory,
@@ -7921,8 +7925,7 @@ var $author$project$Main$handleCorrect = function (model) {
 								function (_v8) {
 									return $author$project$Main$NoOp;
 								},
-								$elm$browser$Browser$Dom$focus('expr-input')),
-								$author$project$Main$clearComboCmd
+								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
 	}
@@ -8276,14 +8279,22 @@ var $author$project$Main$update = F2(
 				var solutions = _v1.a;
 				var newCache = _v1.b;
 				if ($elm$core$List$isEmpty(solutions)) {
-					return _Utils_Tuple2(
+					return _Utils_eq(model.gameMode, $author$project$Main$Daily) ? _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{solverCache: newCache}),
+						$author$project$Main$generateDailyCards(model.dailyDate)) : _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{solverCache: newCache}),
 						$author$project$Main$generateCards(model.difficulty));
 				} else {
 					if (_Utils_eq(model.difficulty, $author$project$Main$Hard) && (!$author$project$Main$hasDivisionSolution(solutions))) {
-						return _Utils_Tuple2(
+						return _Utils_eq(model.gameMode, $author$project$Main$Daily) ? _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{solverCache: newCache}),
+							$author$project$Main$generateDailyCards(model.dailyDate)) : _Utils_Tuple2(
 							_Utils_update(
 								model,
 								{solverCache: newCache}),
@@ -8681,12 +8692,14 @@ var $author$project$Main$update = F2(
 				} else {
 					var newTotalTime = model.totalTime + 1;
 					var newTimer = model.timer + 1;
+					var newComboTimer = A2($elm$core$Basics$max, 0, model.comboTimer - 1);
 					var newAchTimer = A2($elm$core$Basics$max, 0, model.achievementTimer - 1);
+					var clearedCombo = ((!newComboTimer) && (model.comboTimer > 0)) ? $elm$core$Maybe$Nothing : model.comboDisplay;
 					var clearedAch = ((!newAchTimer) && (model.achievementTimer > 0)) ? _List_Nil : model.newAchievements;
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
-							{achievementTimer: newAchTimer, newAchievements: clearedAch, timer: newTimer, totalTime: newTotalTime}),
+							{achievementTimer: newAchTimer, comboDisplay: clearedCombo, comboTimer: newComboTimer, newAchievements: clearedAch, timer: newTimer, totalTime: newTotalTime}),
 						$elm$core$Platform$Cmd$none);
 				}
 			case 'StorageLoaded':
@@ -8958,12 +8971,6 @@ var $author$project$Main$update = F2(
 						model,
 						{showSkippedProblems: !model.showSkippedProblems}),
 					$elm$core$Platform$Cmd$none);
-			case 'ClearCombo':
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{comboDisplay: $elm$core$Maybe$Nothing}),
-					$elm$core$Platform$Cmd$none);
 			case 'ShowSteps':
 				var steps = function () {
 					var _v18 = $elm$core$List$head(model.allSolutions);
@@ -9047,6 +9054,13 @@ var $author$project$Main$update = F2(
 					model,
 					{isOnline: online});
 				return _Utils_Tuple2(newModel, $elm$core$Platform$Cmd$none);
+			case 'ReceiveSFXSetting':
+				var enabled = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{sfxEnabled: enabled}),
+					$elm$core$Platform$Cmd$none);
 			default:
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 		}
