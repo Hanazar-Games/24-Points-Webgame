@@ -62,6 +62,7 @@ type alias Model =
     , timeLeft : Int
     , timeAttackScore : Int
     , timeAttackBest : Int
+    , timeAttackTotalQuestions : Int
     , dailyDate : String
     , dailyCompleted : Bool
     , dailyBestTime : Int
@@ -678,6 +679,7 @@ init flags =
             , timeLeft = 0
             , timeAttackScore = 0
             , timeAttackBest = 0
+            , timeAttackTotalQuestions = 0
             , dailyDate = flags.today
             , dailyCompleted = False
             , dailyBestTime = 0
@@ -824,21 +826,21 @@ decodeStats json model =
                 (\base extra (tah, dh) ->
                     { model
                         | bestStreak = max model.bestStreak base.bestStreak
-                        , solved = model.solved + base.totalSolved
-                        , skipped = model.skipped + base.totalSkipped
-                        , totalTime = model.totalTime + base.totalTime
-                        , achievements = model.achievements ++ base.achievements
+                        , solved = max model.solved base.totalSolved
+                        , skipped = max model.skipped base.totalSkipped
+                        , totalTime = max model.totalTime base.totalTime
+                        , achievements = base.achievements
                         , sfxEnabled = base.sfxEnabled
-                        , history = model.history ++ base.history
+                        , history = base.history
                         , theme = base.theme
-                        , timeAttackBest = extra.timeAttackBest
+                        , timeAttackBest = max model.timeAttackBest extra.timeAttackBest
                         , dailyCompleted = (extra.dailyCompletedDate == model.dailyDate)
-                        , dailyBestTime = extra.dailyBestTime
+                        , dailyBestTime = max model.dailyBestTime extra.dailyBestTime
                         , fastestSolve = if extra.fastestSolve > 0 then extra.fastestSolve else model.fastestSolve
-                        , totalAttempts = model.totalAttempts + extra.totalAttempts
+                        , totalAttempts = max model.totalAttempts extra.totalAttempts
                         , keypadEnabled = extra.keypadEnabled
-                        , sharedCount = extra.sharedCount
-                        , stepsWithKeypad = extra.stepsWithKeypad
+                        , sharedCount = max model.sharedCount extra.sharedCount
+                        , stepsWithKeypad = max model.stepsWithKeypad extra.stepsWithKeypad
                         , timeAttackHistory = tah
                         , dailyHistory = dh
                         }
@@ -985,6 +987,7 @@ update msg model =
                     , timer = 0
                     , pendingNewCards = False
                     , showAllAnswers = False
+                    , timeAttackTotalQuestions = if model.gameMode == TimeAttack then model.timeAttackTotalQuestions + 1 else model.timeAttackTotalQuestions
                   }
                 , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), hashCmd ]
                 )
@@ -1043,7 +1046,7 @@ update msg model =
         NewGame ->
             case model.gameMode of
                 TimeAttack ->
-                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Review ->
                     let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
@@ -1061,7 +1064,8 @@ update msg model =
                         { cardValues = List.map .value model.cards
                         , answer = Maybe.withDefault "" (List.head model.allSolutions)
                         }
-                    newSkippedProblems = problem :: List.take 19 model.skippedProblems
+                    alreadyExists = List.any (\p -> p.cardValues == problem.cardValues) model.skippedProblems
+                    newSkippedProblems = if alreadyExists then model.skippedProblems else problem :: List.take 19 model.skippedProblems
                     hasShield = model.streak >= 3 && not model.shieldActive
                 in
                 case model.gameMode of
@@ -1114,7 +1118,7 @@ update msg model =
                     if model.timeLeft <= 1 then
                         let finalScore = model.timeAttackScore
                             newBest = max finalScore model.timeAttackBest
-                            totalTA = finalScore + model.skipped
+                            totalTA = model.timeAttackTotalQuestions
                             accuracyStr = if totalTA == 0 then "N/A" else String.fromInt (round (toFloat finalScore / toFloat totalTA * 100)) ++ "%"
                             newRecord = { score = finalScore, accuracy = accuracyStr, date = model.dailyDate }
                             newHistory = newRecord :: List.take 9 model.timeAttackHistory
@@ -1191,7 +1195,7 @@ update msg model =
                     let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [] }
                     in ( newModel, Cmd.batch [ generateDailyCards model.dailyDate, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 TimeAttack ->
-                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Classic ->
                     let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info }
@@ -1205,7 +1209,7 @@ update msg model =
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
 
         StartTimeAttack ->
-            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
             in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
 
         StartReview ->
@@ -1425,8 +1429,10 @@ handleCorrect model =
                 newAch = checkAchievements { model | streak = newStreak, solved = newSolved, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
                 hasNewAch = not (List.isEmpty newAch)
                 newHistory = addToHistory model.input model.history
+                currentCardValues = List.map .value model.cards
+                newSkippedProblems = List.filter (\p -> p.cardValues /= currentCardValues) model.skippedProblems
                 newModel = { model
-                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else "复习正确！" ++ model.input ++ " = 24 " ++ stepMsg
+                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else "复习正确！已移除该错题 ✓" ++ stepMsg
                     , messageType = Success
                     , streak = newStreak
                     , solved = newSolved
@@ -1443,6 +1449,7 @@ handleCorrect model =
                     , stepsWithKeypad = newStepsWithKeypad
                     , comboDisplay = Just newStreak
                     , shieldActive = newShield
+                    , skippedProblems = newSkippedProblems
                     }
                 sfx =
                     if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
@@ -1452,6 +1459,41 @@ handleCorrect model =
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), clearComboCmd ] ++ sfx)
             )
+
+
+dateToDays : String -> Int
+dateToDays s =
+    case String.split "-" s of
+        [yStr, mStr, dStr] ->
+            case (String.toInt yStr, String.toInt mStr, String.toInt dStr) of
+                (Just y, Just m, Just d) ->
+                    let yearDays = (y - 1970) * 365 + ((y - 1969) // 4) - ((y - 1901) // 100) + ((y - 1601) // 400)
+                        monthDays = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30]
+                        isLeap = (modBy 4 y == 0 && modBy 100 y /= 0) || (modBy 400 y == 0)
+                        leapAdjust = if isLeap && m > 2 then 1 else 0
+                        monthTotal = List.sum (List.take (m - 1) monthDays)
+                    in yearDays + monthTotal + d + leapAdjust
+                _ -> 0
+        _ -> 0
+
+
+consecutiveStreak : List String -> Int
+consecutiveStreak dates =
+    let uniqueDates = List.foldl (\x acc -> if List.member x acc then acc else x :: acc) [] dates
+        sorted = List.sortBy dateToDays uniqueDates |> List.reverse
+    in
+    case sorted of
+        [] -> 0
+        first :: rest ->
+            let go prevDay count remaining =
+                    case remaining of
+                        [] -> count
+                        next :: restNext ->
+                            if dateToDays prevDay - dateToDays next == 1 then
+                                go next (count + 1) restNext
+                            else
+                                count
+            in go first 1 rest
 
 
 difficultyName : Difficulty -> String
@@ -1789,7 +1831,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .reduce-motion .card { animation: none; }
 .reduce-motion .msg-pulse { animation: none; }
 .reduce-motion .msg-shake { animation: none; }
-.reduce-motion .combo-popup { animation: none; opacity: 0; }
+.reduce-motion .combo-popup { animation: none; opacity: 1; }
 .reduce-motion .achievement-toast { animation: none; }
 .reduce-motion .pop-animation { animation: none; }
 .reduce-motion .stat-fire { animation: none; }
@@ -2121,7 +2163,7 @@ view model =
             div [ class "daily-streak" ]
                 [ div [ class "daily-streak-title" ] [ text "连续打卡" ]
                 , div [ class "daily-streak-days" ]
-                    [ span [ class "daily-streak-num" ] [ text (String.fromInt (List.length model.dailyHistory)) ]
+                    [ span [ class "daily-streak-num" ] [ text (String.fromInt (consecutiveStreak model.dailyHistory)) ]
                     , span [ class "daily-streak-unit" ] [ text "天" ]
                     ]
                 , div [ class "daily-calendar" ]
