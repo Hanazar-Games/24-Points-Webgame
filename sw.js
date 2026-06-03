@@ -1,4 +1,4 @@
-const CACHE_NAME = '24points-v13';
+const CACHE_NAME = '24points-v14';
 const urlsToCache = ['.', 'index.html', 'main.js', 'manifest.json'];
 
 self.addEventListener('install', e => {
