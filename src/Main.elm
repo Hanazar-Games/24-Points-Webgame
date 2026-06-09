@@ -533,8 +533,13 @@ starLabel stars =
         2 -> "渐入佳境"
         3 -> "游刃有余"
         4 -> "炉火纯青"
-        5 -> "解法大师"
+        5 -> "完美杰作"
         _ -> "初窥门径"
+
+
+countBracketPairs : Expr -> Int
+countBracketPairs e =
+    countBrackets e // 2
 
 
 starsToString : Int -> String
@@ -551,24 +556,43 @@ averageRating counts =
     else weighted / toFloat total
 
 
+formatRating : Float -> String
+formatRating n =
+    let r = clamp 0 50 (round (n * 10))
+        whole = r // 10
+        frac = modBy 10 r
+    in String.fromInt whole ++ "." ++ String.fromInt frac
+
+
+normalizeStarCounts : List Int -> List Int
+normalizeStarCounts counts =
+    let padded = counts ++ List.repeat (5 - List.length counts) 0
+    in List.take 5 padded
+
+
 rateSolution : Expr -> Int -> Difficulty -> Int -> SolutionRating
 rateSolution expr stepCount difficulty solveTime =
-    let baseScore = 1.0
-        stepScore = if stepCount <= 3 then 2.0 else if stepCount == 4 then 1.0 else 0.0
-        diversityScore = if countOpTypes expr >= 3 then 1.0 else 0.0
-        bracketScore = if countBrackets expr <= 2 then 0.5 else 0.0
-        hardScore = if difficulty == Hard then 0.5 else 0.0
-        speedScore = if solveTime > 0 && solveTime <= 10 then 0.5 else 0.0
-        rawScore = baseScore + stepScore + diversityScore + bracketScore + hardScore + speedScore
-        stars = clamp 1 5 (floor rawScore)
+    let baseScore = 1
+        opScore = if stepCount <= 3 then 2 else if stepCount == 4 then 1 else 0
+        noDivScore = if exprHasDiv expr then 0 else 1
+        bracketPairs = countBracketPairs expr
+        bracketScore = if bracketPairs <= 1 then 2 else if bracketPairs <= 2 then 1 else 0
+        speedScore = if solveTime <= 5 then 2 else if solveTime <= 15 then 1 else 0
+        hardScore = if difficulty == Hard then 1 else 0
+        total = baseScore + opScore + noDivScore + bracketScore + speedScore + hardScore
+        stars = clamp 1 5 (total - 1)
         details =
-            [ if stepCount <= 3 then Just (String.fromInt stepCount ++ "步运算，行云流水") else Nothing
-            , if countOpTypes expr >= 3 then Just ("使用" ++ String.fromInt (countOpTypes expr) ++ "种运算符，变化多端") else Nothing
-            , if countBrackets expr <= 2 then Just "括号简洁，干净利落" else Nothing
-            , if difficulty == Hard then Just "Hard模式，难上加难" else Nothing
-            , if solveTime > 0 && solveTime <= 10 then Just (String.fromInt solveTime ++ "秒内速解，思维敏捷") else Nothing
+            [ if opScore >= 2 then Just (String.fromInt stepCount ++ "步运算，行云流水") else Nothing
+            , if noDivScore > 0 then Just "未使用除法，解法纯粹" else Nothing
+            , if bracketScore >= 2 then Just "括号极少，干净利落"
+              else if bracketScore >= 1 then Just "括号简洁，层次清晰"
+              else Nothing
+            , if speedScore >= 2 then Just (String.fromInt solveTime ++ "秒内速解，思维敏捷")
+              else if speedScore >= 1 then Just (String.fromInt solveTime ++ "秒完成，眼疾手快")
+              else Nothing
+            , if hardScore > 0 then Just "高级难度，游刃有余" else Nothing
             ] |> List.filterMap identity
-        finalDetails = if List.isEmpty details then ["继续练习，探索更优雅的解法"] else details
+        finalDetails = if List.isEmpty details then ["继续优化，追求更优雅的解法"] else details
     in
     { stars = stars, label = starLabel stars, details = finalDetails }
 
@@ -996,7 +1020,7 @@ decodeStats json model =
                         , timeAttackHistory = tah
                         , dailyHistory = dh
                         , totalRated = max model.totalRated ratings.totalRated
-                        , starCounts = List.map2 max model.starCounts ratings.starCounts
+                        , starCounts = normalizeStarCounts (List.map2 max model.starCounts ratings.starCounts)
                         }
                 )
                 baseDecoder
@@ -1115,9 +1139,11 @@ update msg model =
             if List.isEmpty solutions then
                 if model.gameMode == Daily then
                     ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
+                else if model.gameMode == Custom then
+                    ( { model | solverCache = newCache, message = "自定义题目无解，请换一组数字", messageType = Error }, Cmd.none )
                 else
                     ( { model | solverCache = newCache }, generateCards model.difficulty )
-            else if model.difficulty == Hard && not (hasDivisionSolution solutions) then
+            else if model.difficulty == Hard && not (hasDivisionSolution solutions) && model.gameMode /= Custom then
                 if model.gameMode == Daily then
                     ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
                 else
@@ -1229,7 +1255,7 @@ update msg model =
                     let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
                     in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
                 Custom ->
-                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False }
+                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False, lastRating = Nothing }
                     , playSound "click"
                     )
                 _ ->
@@ -1591,8 +1617,12 @@ handleCorrect model =
         newStepsWithKeypad = if model.keypadEnabled then model.stepsWithKeypad + 1 else model.stepsWithKeypad
         bubuAchievement = if stepCount == 3 && not (List.member "步步为营" model.achievements) then ["步步为营"] else []
         newShield = if model.streak + 1 >= 3 then True else False
-        rating = Maybe.map (\expr -> rateSolution expr stepCount model.difficulty model.timer) maybeExpr
-        newTotalRated = model.totalRated + 1
+        ratingDifficulty = if model.gameMode == Custom then Normal else model.difficulty
+        rating = Maybe.map (\expr -> rateSolution expr stepCount ratingDifficulty model.timer) maybeExpr
+        newTotalRated =
+            case rating of
+                Just _ -> model.totalRated + 1
+                Nothing -> model.totalRated
         newStarCounts =
             case rating of
                 Just r -> List.indexedMap (\i c -> if i == r.stars - 1 then c + 1 else c) model.starCounts
@@ -1601,15 +1631,15 @@ handleCorrect model =
             case rating of
                 Just r -> " " ++ starsToString r.stars ++ " " ++ r.label ++ "！"
                 Nothing -> ""
-        ratingDetail =
-            case rating of
-                Just r -> " | " ++ String.join " · " r.details
-                Nothing -> ""
         buildMessage prefix hasNewAch =
             if hasNewAch then
-                "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg ++ ratingDetail
+                "解锁成就！ " ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg
             else
-                prefix ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg ++ ratingDetail
+                prefix ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg
+        ratingSfx =
+            case rating of
+                Just r -> if r.stars == 5 then [ playSound "achievement" ] else []
+                Nothing -> []
         commonFields =
             { totalRated = newTotalRated
             , starCounts = newStarCounts
@@ -1651,9 +1681,11 @@ handleCorrect model =
                     , lastRating = commonFields.lastRating
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5), vibrate 80 ]
-                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    let baseSfx =
+                            if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                            else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5), vibrate 80 ]
+                            else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    in baseSfx ++ ratingSfx
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1696,9 +1728,11 @@ handleCorrect model =
                     , lastRating = commonFields.lastRating
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
-                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    let baseSfx =
+                            if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                            else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                            else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    in baseSfx ++ ratingSfx
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1734,9 +1768,11 @@ handleCorrect model =
                     , lastRating = commonFields.lastRating
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
-                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    let baseSfx =
+                            if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                            else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                            else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    in baseSfx ++ ratingSfx
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1775,9 +1811,11 @@ handleCorrect model =
                     , lastRating = commonFields.lastRating
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
-                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    let baseSfx =
+                            if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                            else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                            else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    in baseSfx ++ ratingSfx
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1813,9 +1851,11 @@ handleCorrect model =
                     , lastRating = commonFields.lastRating
                     }
                 sfx =
-                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
-                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
-                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    let baseSfx =
+                            if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                            else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                            else [ playSound "success", spawnParticles 30, vibrate 80 ]
+                    in baseSfx ++ ratingSfx
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> OpenCustomPanel) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "custom-input") ] ++ sfx)
@@ -1984,7 +2024,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }
 .container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }
 
-.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }
+.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); overflow-wrap: break-word; }
 .container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }
 .container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }
 .container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }
@@ -2006,7 +2046,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .rating-stars { font-size: 1.8em; margin-bottom: 4px; line-height: 1; }
 .rating-label { color: #ffd700; font-weight: 800; font-size: 1.1em; margin-bottom: 6px; }
 .container.dark .rating-label { text-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }
-.container.light .rating-label { text-shadow: 0 0 8px rgba(255, 215, 0, 0.25); }
+.container.light .rating-label { color: #c78d0a; text-shadow: 0 0 8px rgba(199, 141, 10, 0.2); }
 .rating-details { font-size: 0.85em; font-weight: 500; }
 .container.dark .rating-details { color: #8892b0; }
 .container.light .rating-details { color: #64748b; }
@@ -2233,6 +2273,10 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
     .btn { padding: 10px 14px; font-size: 0.8em; }
     .stats { gap: 6px; }
     .stat-box { padding: 8px 10px; }
+    .rating-panel { padding: 12px; }
+    .rating-stars { font-size: 1.5em; }
+    .rating-label { font-size: 1em; }
+    .rating-details { font-size: 0.8em; }
 }
 """) ]
 
@@ -2344,7 +2388,7 @@ view model =
         isCustom = model.gameMode == Custom
         avgRating = averageRating model.starCounts
         fiveStarCount = List.drop 4 model.starCounts |> List.head |> Maybe.withDefault 0
-        ratingStatText = if model.totalRated > 0 then String.fromFloat (toFloat (round (avgRating * 10)) / 10) ++ "★" else ""
+        ratingStatText = if model.totalRated > 0 then formatRating avgRating ++ "★" else ""
     in
     div [ class ("container " ++ themeClass ++ if model.reduceMotion then " reduce-motion" else "") ]
         [ css model.theme
@@ -2658,7 +2702,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.16" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.17" ]
         ]
 
 
