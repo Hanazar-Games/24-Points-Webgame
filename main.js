@@ -5644,6 +5644,7 @@ var $author$project$Main$init = function (flags) {
 		inputHint: '',
 		isOnline: true,
 		keypadEnabled: true,
+		lastRating: $elm$core$Maybe$Nothing,
 		liveResult: '',
 		message: '点击「新游戏」开始24点挑战！',
 		messageType: $author$project$Main$Info,
@@ -5663,6 +5664,8 @@ var $author$project$Main$init = function (flags) {
 		skippedProblems: _List_Nil,
 		solved: 0,
 		solverCache: $elm$core$Dict$empty,
+		starCounts: _List_fromArray(
+			[0, 0, 0, 0, 0]),
 		stepByStep: _List_Nil,
 		stepsWithKeypad: 0,
 		streak: 0,
@@ -5675,6 +5678,7 @@ var $author$project$Main$init = function (flags) {
 		timer: 0,
 		totalAttempts: 0,
 		totalGames: 0,
+		totalRated: 0,
 		totalTime: 0
 	};
 	var _v0 = $author$project$Main$parseHashCards(flags.hash);
@@ -6664,6 +6668,10 @@ var $author$project$Main$ExtraData = F8(
 	function (timeAttackBest, dailyCompletedDate, dailyBestTime, fastestSolve, totalAttempts, keypadEnabled, sharedCount, stepsWithKeypad) {
 		return {dailyBestTime: dailyBestTime, dailyCompletedDate: dailyCompletedDate, fastestSolve: fastestSolve, keypadEnabled: keypadEnabled, sharedCount: sharedCount, stepsWithKeypad: stepsWithKeypad, timeAttackBest: timeAttackBest, totalAttempts: totalAttempts};
 	});
+var $author$project$Main$RatingData = F2(
+	function (totalRated, starCounts) {
+		return {starCounts: starCounts, totalRated: totalRated};
+	});
 var $author$project$Main$TimeAttackRecord = F3(
 	function (score, accuracy, date) {
 		return {accuracy: accuracy, date: date, score: score};
@@ -6672,6 +6680,7 @@ var $elm$json$Json$Decode$decodeString = _Json_runOnString;
 var $elm$json$Json$Decode$int = _Json_decodeInt;
 var $elm$json$Json$Decode$list = _Json_decodeList;
 var $elm$json$Json$Decode$map3 = _Json_map3;
+var $elm$json$Json$Decode$map5 = _Json_map5;
 var $elm$json$Json$Decode$map8 = _Json_map8;
 var $elm$json$Json$Decode$oneOf = _Json_oneOf;
 var $elm$json$Json$Decode$maybe = function (decoder) {
@@ -6682,10 +6691,6 @@ var $elm$json$Json$Decode$maybe = function (decoder) {
 				$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
 			]));
 };
-var $elm$core$Tuple$pair = F2(
-	function (a, b) {
-		return _Utils_Tuple2(a, b);
-	});
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
 		takeReverse:
@@ -6871,6 +6876,24 @@ var $author$project$Main$decodeStats = F2(
 						}),
 					$elm$json$Json$Decode$list($elm$json$Json$Decode$int))
 				]));
+		var ratingDecoder = A3(
+			$elm$json$Json$Decode$map2,
+			$author$project$Main$RatingData,
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(0),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'totalRated', $elm$json$Json$Decode$int))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(
+					_List_fromArray(
+						[0, 0, 0, 0, 0])),
+				$elm$json$Json$Decode$maybe(
+					A2(
+						$elm$json$Json$Decode$field,
+						'starCounts',
+						$elm$json$Json$Decode$list($elm$json$Json$Decode$int)))));
 		var extraDecoder = A9(
 			$elm$json$Json$Decode$map8,
 			$author$project$Main$ExtraData,
@@ -6963,12 +6986,10 @@ var $author$project$Main$decodeStats = F2(
 				$elm$core$Maybe$withDefault($author$project$Main$Dark),
 				$elm$json$Json$Decode$maybe(
 					A2($elm$json$Json$Decode$field, 'theme', $author$project$Main$themeDecoder))));
-		var fullDecoder = A4(
-			$elm$json$Json$Decode$map3,
-			F3(
-				function (base, extra, _v1) {
-					var tah = _v1.a;
-					var dh = _v1.b;
+		var fullDecoder = A6(
+			$elm$json$Json$Decode$map5,
+			F5(
+				function (base, extra, ratings, tah, dh) {
 					return _Utils_update(
 						model,
 						{
@@ -6988,32 +7009,32 @@ var $author$project$Main$decodeStats = F2(
 							sharedCount: A2($elm$core$Basics$max, model.sharedCount, extra.sharedCount),
 							skipped: A2($elm$core$Basics$max, model.skipped, base.totalSkipped),
 							solved: A2($elm$core$Basics$max, model.solved, base.totalSolved),
+							starCounts: A3($elm$core$List$map2, $elm$core$Basics$max, model.starCounts, ratings.starCounts),
 							stepsWithKeypad: A2($elm$core$Basics$max, model.stepsWithKeypad, extra.stepsWithKeypad),
 							theme: base.theme,
 							timeAttackBest: A2($elm$core$Basics$max, model.timeAttackBest, extra.timeAttackBest),
 							timeAttackHistory: tah,
 							totalAttempts: A2($elm$core$Basics$max, model.totalAttempts, extra.totalAttempts),
+							totalRated: A2($elm$core$Basics$max, model.totalRated, ratings.totalRated),
 							totalTime: A2($elm$core$Basics$max, model.totalTime, base.totalTime)
 						});
 				}),
 			baseDecoder,
 			extraDecoder,
-			A3(
-				$elm$json$Json$Decode$map2,
-				$elm$core$Tuple$pair,
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2($elm$json$Json$Decode$field, 'timeAttackHistory', timeAttackHistoryDecoder))),
-				A2(
-					$elm$json$Json$Decode$map,
-					$elm$core$Maybe$withDefault(_List_Nil),
-					$elm$json$Json$Decode$maybe(
-						A2(
-							$elm$json$Json$Decode$field,
-							'dailyHistory',
-							$elm$json$Json$Decode$list($elm$json$Json$Decode$string))))));
+			ratingDecoder,
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(_List_Nil),
+				$elm$json$Json$Decode$maybe(
+					A2($elm$json$Json$Decode$field, 'timeAttackHistory', timeAttackHistoryDecoder))),
+			A2(
+				$elm$json$Json$Decode$map,
+				$elm$core$Maybe$withDefault(_List_Nil),
+				$elm$json$Json$Decode$maybe(
+					A2(
+						$elm$json$Json$Decode$field,
+						'dailyHistory',
+						$elm$json$Json$Decode$list($elm$json$Json$Decode$string)))));
 		var _v0 = A2($elm$json$Json$Decode$decodeString, fullDecoder, json);
 		if (_v0.$ === 'Ok') {
 			var newModel = _v0.a;
@@ -7143,7 +7164,13 @@ var $author$project$Main$encodeStats = function (model) {
 					$elm$json$Json$Encode$int(model.stepsWithKeypad)),
 					_Utils_Tuple2(
 					'timeAttackHistory',
-					A2($elm$json$Json$Encode$list, $author$project$Main$encodeTimeAttackRecord, model.timeAttackHistory))
+					A2($elm$json$Json$Encode$list, $author$project$Main$encodeTimeAttackRecord, model.timeAttackHistory)),
+					_Utils_Tuple2(
+					'totalRated',
+					$elm$json$Json$Encode$int(model.totalRated)),
+					_Utils_Tuple2(
+					'starCounts',
+					A2($elm$json$Json$Encode$list, $elm$json$Json$Encode$int, model.starCounts))
 				])));
 };
 var $author$project$Main$exprHasDiv = function (e) {
@@ -7541,7 +7568,14 @@ var $author$project$Main$checkAchievements = function (model) {
 			_Utils_Tuple2('火神', model.streak >= 20),
 			_Utils_Tuple2('键盘侠', model.stepsWithKeypad >= 10),
 			_Utils_Tuple2('分享达人', model.sharedCount >= 3),
-			_Utils_Tuple2('步步为营', model.solved >= 1)
+			_Utils_Tuple2('步步为营', model.solved >= 1),
+			_Utils_Tuple2(
+			'解法大师',
+			A2(
+				$elm$core$Maybe$withDefault,
+				0,
+				$elm$core$List$head(
+					A2($elm$core$List$drop, 4, model.starCounts))) >= 10)
 		]);
 	return A2(
 		$elm$core$List$filterMap,
@@ -7576,6 +7610,282 @@ var $author$project$Main$countOps = function (e) {
 };
 var $elm$core$Basics$neq = _Utils_notEqual;
 var $author$project$Main$playSound = _Platform_outgoingPort('playSound', $elm$json$Json$Encode$string);
+var $elm$core$Basics$clamp = F3(
+	function (low, high, number) {
+		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
+	});
+var $author$project$Main$countBrackets = function (e) {
+	var childNeedsParens = F3(
+		function (child, parent, isRightSide) {
+			var _v1 = _Utils_Tuple2(parent, child);
+			_v1$12:
+			while (true) {
+				switch (_v1.a.$) {
+					case 'AddE':
+						switch (_v1.b.$) {
+							case 'SubE':
+								var _v2 = _v1.a;
+								var _v3 = _v1.b;
+								return true;
+							case 'MulE':
+								var _v10 = _v1.a;
+								var _v11 = _v1.b;
+								return false;
+							case 'DivE':
+								var _v12 = _v1.a;
+								var _v13 = _v1.b;
+								return false;
+							default:
+								break _v1$12;
+						}
+					case 'SubE':
+						switch (_v1.b.$) {
+							case 'AddE':
+								var _v4 = _v1.a;
+								var _v5 = _v1.b;
+								return true;
+							case 'MulE':
+								var _v14 = _v1.a;
+								var _v15 = _v1.b;
+								return false;
+							case 'DivE':
+								var _v16 = _v1.a;
+								var _v17 = _v1.b;
+								return false;
+							default:
+								break _v1$12;
+						}
+					case 'MulE':
+						switch (_v1.b.$) {
+							case 'DivE':
+								var _v6 = _v1.a;
+								var _v7 = _v1.b;
+								return true;
+							case 'AddE':
+								var _v18 = _v1.a;
+								var _v19 = _v1.b;
+								return true;
+							case 'SubE':
+								var _v20 = _v1.a;
+								var _v21 = _v1.b;
+								return true;
+							default:
+								break _v1$12;
+						}
+					case 'DivE':
+						switch (_v1.b.$) {
+							case 'MulE':
+								var _v8 = _v1.a;
+								var _v9 = _v1.b;
+								return true;
+							case 'AddE':
+								var _v22 = _v1.a;
+								var _v23 = _v1.b;
+								return true;
+							case 'SubE':
+								var _v24 = _v1.a;
+								var _v25 = _v1.b;
+								return true;
+							default:
+								break _v1$12;
+						}
+					default:
+						break _v1$12;
+				}
+			}
+			return false;
+		});
+	var go = function (expr) {
+		switch (expr.$) {
+			case 'Num':
+				return 0;
+			case 'AddE':
+				var l = expr.a;
+				var r = expr.b;
+				return (((A3(
+					childNeedsParens,
+					l,
+					A2($author$project$Main$AddE, l, r),
+					false) ? 2 : 0) + go(l)) + (A3(
+					childNeedsParens,
+					r,
+					A2($author$project$Main$AddE, l, r),
+					true) ? 2 : 0)) + go(r);
+			case 'SubE':
+				var l = expr.a;
+				var r = expr.b;
+				return (((A3(
+					childNeedsParens,
+					l,
+					A2($author$project$Main$SubE, l, r),
+					false) ? 2 : 0) + go(l)) + (A3(
+					childNeedsParens,
+					r,
+					A2($author$project$Main$SubE, l, r),
+					true) ? 2 : 0)) + go(r);
+			case 'MulE':
+				var l = expr.a;
+				var r = expr.b;
+				return (((A3(
+					childNeedsParens,
+					l,
+					A2($author$project$Main$MulE, l, r),
+					false) ? 2 : 0) + go(l)) + (A3(
+					childNeedsParens,
+					r,
+					A2($author$project$Main$MulE, l, r),
+					true) ? 2 : 0)) + go(r);
+			default:
+				var l = expr.a;
+				var r = expr.b;
+				return (((A3(
+					childNeedsParens,
+					l,
+					A2($author$project$Main$DivE, l, r),
+					false) ? 2 : 0) + go(l)) + (A3(
+					childNeedsParens,
+					r,
+					A2($author$project$Main$DivE, l, r),
+					true) ? 2 : 0)) + go(r);
+		}
+	};
+	return go(e);
+};
+var $elm$core$Dict$sizeHelp = F2(
+	function (n, dict) {
+		sizeHelp:
+		while (true) {
+			if (dict.$ === 'RBEmpty_elm_builtin') {
+				return n;
+			} else {
+				var left = dict.d;
+				var right = dict.e;
+				var $temp$n = A2($elm$core$Dict$sizeHelp, n + 1, right),
+					$temp$dict = left;
+				n = $temp$n;
+				dict = $temp$dict;
+				continue sizeHelp;
+			}
+		}
+	});
+var $elm$core$Dict$size = function (dict) {
+	return A2($elm$core$Dict$sizeHelp, 0, dict);
+};
+var $elm$core$Set$size = function (_v0) {
+	var dict = _v0.a;
+	return $elm$core$Dict$size(dict);
+};
+var $author$project$Main$countOpTypes = function (e) {
+	var go = F2(
+		function (expr, acc) {
+			go:
+			while (true) {
+				switch (expr.$) {
+					case 'Num':
+						return acc;
+					case 'AddE':
+						var l = expr.a;
+						var r = expr.b;
+						var $temp$expr = r,
+							$temp$acc = A2(
+							$elm$core$Set$insert,
+							'+',
+							A2(go, l, acc));
+						expr = $temp$expr;
+						acc = $temp$acc;
+						continue go;
+					case 'SubE':
+						var l = expr.a;
+						var r = expr.b;
+						var $temp$expr = r,
+							$temp$acc = A2(
+							$elm$core$Set$insert,
+							'-',
+							A2(go, l, acc));
+						expr = $temp$expr;
+						acc = $temp$acc;
+						continue go;
+					case 'MulE':
+						var l = expr.a;
+						var r = expr.b;
+						var $temp$expr = r,
+							$temp$acc = A2(
+							$elm$core$Set$insert,
+							'*',
+							A2(go, l, acc));
+						expr = $temp$expr;
+						acc = $temp$acc;
+						continue go;
+					default:
+						var l = expr.a;
+						var r = expr.b;
+						var $temp$expr = r,
+							$temp$acc = A2(
+							$elm$core$Set$insert,
+							'/',
+							A2(go, l, acc));
+						expr = $temp$expr;
+						acc = $temp$acc;
+						continue go;
+				}
+			}
+		});
+	return $elm$core$Set$size(
+		A2(go, e, $elm$core$Set$empty));
+};
+var $author$project$Main$starLabel = function (stars) {
+	switch (stars) {
+		case 1:
+			return '初窥门径';
+		case 2:
+			return '渐入佳境';
+		case 3:
+			return '游刃有余';
+		case 4:
+			return '炉火纯青';
+		case 5:
+			return '解法大师';
+		default:
+			return '初窥门径';
+	}
+};
+var $author$project$Main$rateSolution = F4(
+	function (expr, stepCount, difficulty, solveTime) {
+		var stepScore = (stepCount <= 3) ? 2.0 : ((stepCount === 4) ? 1.0 : 0.0);
+		var speedScore = ((solveTime > 0) && (solveTime <= 10)) ? 0.5 : 0.0;
+		var hardScore = _Utils_eq(difficulty, $author$project$Main$Hard) ? 0.5 : 0.0;
+		var diversityScore = ($author$project$Main$countOpTypes(expr) >= 3) ? 1.0 : 0.0;
+		var details = A2(
+			$elm$core$List$filterMap,
+			$elm$core$Basics$identity,
+			_List_fromArray(
+				[
+					(stepCount <= 3) ? $elm$core$Maybe$Just(
+					$elm$core$String$fromInt(stepCount) + '步运算，行云流水') : $elm$core$Maybe$Nothing,
+					($author$project$Main$countOpTypes(expr) >= 3) ? $elm$core$Maybe$Just(
+					'使用' + ($elm$core$String$fromInt(
+						$author$project$Main$countOpTypes(expr)) + '种运算符，变化多端')) : $elm$core$Maybe$Nothing,
+					($author$project$Main$countBrackets(expr) <= 2) ? $elm$core$Maybe$Just('括号简洁，干净利落') : $elm$core$Maybe$Nothing,
+					_Utils_eq(difficulty, $author$project$Main$Hard) ? $elm$core$Maybe$Just('Hard模式，难上加难') : $elm$core$Maybe$Nothing,
+					((solveTime > 0) && (solveTime <= 10)) ? $elm$core$Maybe$Just(
+					$elm$core$String$fromInt(solveTime) + '秒内速解，思维敏捷') : $elm$core$Maybe$Nothing
+				]));
+		var finalDetails = $elm$core$List$isEmpty(details) ? _List_fromArray(
+			['继续练习，探索更优雅的解法']) : details;
+		var bracketScore = ($author$project$Main$countBrackets(expr) <= 2) ? 0.5 : 0.0;
+		var baseScore = 1.0;
+		var rawScore = ((((baseScore + stepScore) + diversityScore) + bracketScore) + hardScore) + speedScore;
+		var stars = A3(
+			$elm$core$Basics$clamp,
+			1,
+			5,
+			$elm$core$Basics$floor(rawScore));
+		return {
+			details: finalDetails,
+			label: $author$project$Main$starLabel(stars),
+			stars: stars
+		};
+	});
 var $author$project$Main$saveToStorage = _Platform_outgoingPort('saveToStorage', $elm$json$Json$Encode$string);
 var $author$project$Main$saveCmd = function (model) {
 	return $author$project$Main$saveToStorage(
@@ -7583,28 +7893,93 @@ var $author$project$Main$saveCmd = function (model) {
 };
 var $elm$core$Process$sleep = _Process_sleep;
 var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles', $elm$json$Json$Encode$int);
+var $elm$core$Bitwise$shiftRightBy = _Bitwise_shiftRightBy;
+var $elm$core$String$repeatHelp = F3(
+	function (n, chunk, result) {
+		return (n <= 0) ? result : A3(
+			$elm$core$String$repeatHelp,
+			n >> 1,
+			_Utils_ap(chunk, chunk),
+			(!(n & 1)) ? result : _Utils_ap(result, chunk));
+	});
+var $elm$core$String$repeat = F2(
+	function (n, chunk) {
+		return A3($elm$core$String$repeatHelp, n, chunk, '');
+	});
+var $author$project$Main$starsToString = function (n) {
+	return A2(
+		$elm$core$String$repeat,
+		A3($elm$core$Basics$clamp, 1, 5, n),
+		'⭐');
+};
 var $author$project$Main$vibrate = _Platform_outgoingPort('vibrate', $elm$json$Json$Encode$int);
 var $author$project$Main$handleCorrect = function (model) {
-	var stepCount = function () {
-		var _v11 = $author$project$Main$parseExpr(
-			$author$project$Main$tokenize(model.input));
-		if (_v11.$ === 'Just') {
-			var _v12 = _v11.a;
-			var expr = _v12.a;
-			var rest = _v12.b;
-			return $elm$core$List$isEmpty(rest) ? $author$project$Main$countOps(expr) : 0;
-		} else {
-			return 0;
-		}
-	}();
-	var stepMsg = (stepCount > 0) ? ('（' + ($elm$core$String$fromInt(stepCount) + '步运算）')) : '';
+	var parsedExpr = $author$project$Main$parseExpr(
+		$author$project$Main$tokenize(model.input));
+	var newTotalRated = model.totalRated + 1;
 	var newStepsWithKeypad = model.keypadEnabled ? (model.stepsWithKeypad + 1) : model.stepsWithKeypad;
 	var newShield = ((model.streak + 1) >= 3) ? true : false;
 	var newFastest = ((model.timer > 0) && ((!model.fastestSolve) || (_Utils_cmp(model.timer, model.fastestSolve) < 0))) ? model.timer : model.fastestSolve;
+	var _v0 = function () {
+		if (parsedExpr.$ === 'Just') {
+			var _v2 = parsedExpr.a;
+			var expr = _v2.a;
+			var rest = _v2.b;
+			return $elm$core$List$isEmpty(rest) ? _Utils_Tuple2(
+				$elm$core$Maybe$Just(expr),
+				$author$project$Main$countOps(expr)) : _Utils_Tuple2($elm$core$Maybe$Nothing, 0);
+		} else {
+			return _Utils_Tuple2($elm$core$Maybe$Nothing, 0);
+		}
+	}();
+	var maybeExpr = _v0.a;
+	var stepCount = _v0.b;
 	var bubuAchievement = ((stepCount === 3) && (!A2($elm$core$List$member, '步步为营', model.achievements))) ? _List_fromArray(
 		['步步为营']) : _List_Nil;
-	var _v0 = model.gameMode;
-	switch (_v0.$) {
+	var rating = A2(
+		$elm$core$Maybe$map,
+		function (expr) {
+			return A4($author$project$Main$rateSolution, expr, stepCount, model.difficulty, model.timer);
+		},
+		maybeExpr);
+	var newStarCounts = function () {
+		if (rating.$ === 'Just') {
+			var r = rating.a;
+			return A2(
+				$elm$core$List$indexedMap,
+				F2(
+					function (i, c) {
+						return _Utils_eq(i, r.stars - 1) ? (c + 1) : c;
+					}),
+				model.starCounts);
+		} else {
+			return model.starCounts;
+		}
+	}();
+	var commonFields = {lastRating: rating, starCounts: newStarCounts, totalRated: newTotalRated};
+	var ratingDetail = function () {
+		if (rating.$ === 'Just') {
+			var r = rating.a;
+			return ' | ' + A2($elm$core$String$join, ' · ', r.details);
+		} else {
+			return '';
+		}
+	}();
+	var ratingMsg = function () {
+		if (rating.$ === 'Just') {
+			var r = rating.a;
+			return ' ' + ($author$project$Main$starsToString(r.stars) + (' ' + (r.label + '！')));
+		} else {
+			return '';
+		}
+	}();
+	var stepMsg = (stepCount > 0) ? ('（' + ($elm$core$String$fromInt(stepCount) + '步运算）')) : '';
+	var buildMessage = F2(
+		function (prefix, hasNewAch) {
+			return hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + (stepMsg + (ratingMsg + ratingDetail))))) : (prefix + (model.input + (' = 24 ' + (stepMsg + (ratingMsg + ratingDetail)))));
+		});
+	var _v3 = model.gameMode;
+	switch (_v3.$) {
 		case 'TimeAttack':
 			var newTimeLeft = model.timeLeft + 10;
 			var newStreak = model.streak + 1;
@@ -7615,7 +7990,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				$author$project$Main$checkAchievements(
 					_Utils_update(
 						model,
-						{solved: model.solved + 1, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+						{solved: model.solved + 1, starCounts: newStarCounts, stepsWithKeypad: newStepsWithKeypad, streak: newStreak, totalRated: newTotalRated})),
 				bubuAchievement);
 			var hasNewAch = !$elm$core$List$isEmpty(newAch);
 			var newModel = _Utils_update(
@@ -7630,17 +8005,23 @@ var $author$project$Main$handleCorrect = function (model) {
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
-					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : ('+' + ($elm$core$String$fromInt(newScore) + ('分！+10秒！' + stepMsg))),
+					lastRating: commonFields.lastRating,
+					message: A2(
+						buildMessage,
+						'+' + ($elm$core$String$fromInt(newScore) + '分！+10秒！'),
+						hasNewAch),
 					messageType: $author$project$Main$Success,
 					newAchievements: newAch,
 					pendingNewCards: true,
 					shieldActive: newShield,
 					showHint: false,
 					solved: model.solved + 1,
+					starCounts: commonFields.starCounts,
 					stepsWithKeypad: newStepsWithKeypad,
 					streak: newStreak,
 					timeAttackScore: newScore,
-					timeLeft: newTimeLeft
+					timeLeft: newTimeLeft,
+					totalRated: commonFields.totalRated
 				});
 			var sfx = hasNewAch ? _List_fromArray(
 				[
@@ -7668,14 +8049,14 @@ var $author$project$Main$handleCorrect = function (model) {
 							[
 								A2(
 								$elm$core$Task$perform,
-								function (_v1) {
+								function (_v4) {
 									return $author$project$Main$DelayedNewCards;
 								},
 								$elm$core$Process$sleep(600)),
 								$author$project$Main$saveCmd(newModel),
 								A2(
 								$elm$core$Task$attempt,
-								function (_v2) {
+								function (_v5) {
 									return $author$project$Main$NoOp;
 								},
 								$elm$browser$Browser$Dom$focus('expr-input'))
@@ -7692,7 +8073,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				$author$project$Main$checkAchievements(
 					_Utils_update(
 						model,
-						{dailyCompleted: true, solved: newSolved, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+						{dailyCompleted: true, solved: newSolved, starCounts: newStarCounts, stepsWithKeypad: newStepsWithKeypad, streak: newStreak, totalRated: newTotalRated})),
 				bubuAchievement);
 			var isFirstDaily = !model.dailyCompleted;
 			var newDailyHistory = isFirstDaily ? A2($elm$core$List$cons, model.dailyDate, model.dailyHistory) : model.dailyHistory;
@@ -7712,15 +8093,21 @@ var $author$project$Main$handleCorrect = function (model) {
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
-					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : (isFirstDaily ? ('今日挑战完成！' + (model.input + (' = 24 ' + stepMsg))) : ('正确！' + (model.input + (' = 24 ' + stepMsg)))),
+					lastRating: commonFields.lastRating,
+					message: A2(
+						buildMessage,
+						isFirstDaily ? '今日挑战完成！' : '正确！',
+						hasNewAch),
 					messageType: $author$project$Main$Success,
 					newAchievements: newAch,
 					pendingNewCards: true,
 					shieldActive: newShield,
 					showHint: false,
 					solved: newSolved,
+					starCounts: commonFields.starCounts,
 					stepsWithKeypad: newStepsWithKeypad,
-					streak: newStreak
+					streak: newStreak,
+					totalRated: commonFields.totalRated
 				});
 			var sfx = hasNewAch ? _List_fromArray(
 				[
@@ -7748,14 +8135,14 @@ var $author$project$Main$handleCorrect = function (model) {
 							[
 								A2(
 								$elm$core$Task$perform,
-								function (_v3) {
+								function (_v6) {
 									return $author$project$Main$DelayedNewCards;
 								},
 								$elm$core$Process$sleep(800)),
 								$author$project$Main$saveCmd(newModel),
 								A2(
 								$elm$core$Task$attempt,
-								function (_v4) {
+								function (_v7) {
 									return $author$project$Main$NoOp;
 								},
 								$elm$browser$Browser$Dom$focus('expr-input'))
@@ -7770,7 +8157,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				$author$project$Main$checkAchievements(
 					_Utils_update(
 						model,
-						{solved: newSolved, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+						{solved: newSolved, starCounts: newStarCounts, stepsWithKeypad: newStepsWithKeypad, streak: newStreak, totalRated: newTotalRated})),
 				bubuAchievement);
 			var hasNewAch = !$elm$core$List$isEmpty(newAch);
 			var newModel = _Utils_update(
@@ -7785,15 +8172,18 @@ var $author$project$Main$handleCorrect = function (model) {
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
-					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : ('正确！' + (model.input + (' = 24 ' + stepMsg))),
+					lastRating: commonFields.lastRating,
+					message: A2(buildMessage, '正确！', hasNewAch),
 					messageType: $author$project$Main$Success,
 					newAchievements: newAch,
 					pendingNewCards: true,
 					shieldActive: newShield,
 					showHint: false,
 					solved: newSolved,
+					starCounts: commonFields.starCounts,
 					stepsWithKeypad: newStepsWithKeypad,
-					streak: newStreak
+					streak: newStreak,
+					totalRated: commonFields.totalRated
 				});
 			var sfx = hasNewAch ? _List_fromArray(
 				[
@@ -7821,14 +8211,14 @@ var $author$project$Main$handleCorrect = function (model) {
 							[
 								A2(
 								$elm$core$Task$perform,
-								function (_v5) {
+								function (_v8) {
 									return $author$project$Main$DelayedNewCards;
 								},
 								$elm$core$Process$sleep(800)),
 								$author$project$Main$saveCmd(newModel),
 								A2(
 								$elm$core$Task$attempt,
-								function (_v6) {
+								function (_v9) {
 									return $author$project$Main$NoOp;
 								},
 								$elm$browser$Browser$Dom$focus('expr-input'))
@@ -7843,7 +8233,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				$author$project$Main$checkAchievements(
 					_Utils_update(
 						model,
-						{solved: newSolved, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+						{solved: newSolved, starCounts: newStarCounts, stepsWithKeypad: newStepsWithKeypad, streak: newStreak, totalRated: newTotalRated})),
 				bubuAchievement);
 			var hasNewAch = !$elm$core$List$isEmpty(newAch);
 			var sfx = hasNewAch ? _List_fromArray(
@@ -7888,7 +8278,8 @@ var $author$project$Main$handleCorrect = function (model) {
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
-					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : ('复习正确！已移除该错题 ✓' + stepMsg),
+					lastRating: commonFields.lastRating,
+					message: A2(buildMessage, '复习正确！已移除该错题 ✓', hasNewAch),
 					messageType: $author$project$Main$Success,
 					newAchievements: newAch,
 					pendingNewCards: true,
@@ -7896,8 +8287,10 @@ var $author$project$Main$handleCorrect = function (model) {
 					showHint: false,
 					skippedProblems: newSkippedProblems,
 					solved: newSolved,
+					starCounts: commonFields.starCounts,
 					stepsWithKeypad: newStepsWithKeypad,
-					streak: newStreak
+					streak: newStreak,
+					totalRated: commonFields.totalRated
 				});
 			return _Utils_Tuple2(
 				newModel,
@@ -7907,14 +8300,14 @@ var $author$project$Main$handleCorrect = function (model) {
 							[
 								A2(
 								$elm$core$Task$perform,
-								function (_v7) {
+								function (_v10) {
 									return $author$project$Main$DelayedNewCards;
 								},
 								$elm$core$Process$sleep(800)),
 								$author$project$Main$saveCmd(newModel),
 								A2(
 								$elm$core$Task$attempt,
-								function (_v8) {
+								function (_v11) {
 									return $author$project$Main$NoOp;
 								},
 								$elm$browser$Browser$Dom$focus('expr-input'))
@@ -7929,7 +8322,7 @@ var $author$project$Main$handleCorrect = function (model) {
 				$author$project$Main$checkAchievements(
 					_Utils_update(
 						model,
-						{solved: newSolved, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+						{solved: newSolved, starCounts: newStarCounts, stepsWithKeypad: newStepsWithKeypad, streak: newStreak, totalRated: newTotalRated})),
 				bubuAchievement);
 			var hasNewAch = !$elm$core$List$isEmpty(newAch);
 			var newModel = _Utils_update(
@@ -7944,15 +8337,18 @@ var $author$project$Main$handleCorrect = function (model) {
 					hintLevel: 0,
 					history: newHistory,
 					input: '',
-					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : ('自定义挑战正确！' + (model.input + (' = 24 ' + stepMsg))),
+					lastRating: commonFields.lastRating,
+					message: A2(buildMessage, '自定义挑战正确！', hasNewAch),
 					messageType: $author$project$Main$Success,
 					newAchievements: newAch,
 					pendingNewCards: false,
 					shieldActive: newShield,
 					showHint: false,
 					solved: newSolved,
+					starCounts: commonFields.starCounts,
 					stepsWithKeypad: newStepsWithKeypad,
-					streak: newStreak
+					streak: newStreak,
+					totalRated: commonFields.totalRated
 				});
 			var sfx = hasNewAch ? _List_fromArray(
 				[
@@ -7980,14 +8376,14 @@ var $author$project$Main$handleCorrect = function (model) {
 							[
 								A2(
 								$elm$core$Task$perform,
-								function (_v9) {
+								function (_v12) {
 									return $author$project$Main$OpenCustomPanel;
 								},
 								$elm$core$Process$sleep(800)),
 								$author$project$Main$saveCmd(newModel),
 								A2(
 								$elm$core$Task$attempt,
-								function (_v10) {
+								function (_v13) {
 									return $author$project$Main$NoOp;
 								},
 								$elm$browser$Browser$Dom$focus('custom-input'))
@@ -8435,6 +8831,7 @@ var $author$project$Main$update = F2(
 									hintText: '',
 									input: '',
 									inputHint: '',
+									lastRating: $elm$core$Maybe$Nothing,
 									liveResult: '',
 									message: baseMsg,
 									messageType: $author$project$Main$Info,
@@ -9455,12 +9852,34 @@ var $author$project$Main$achievementProgress = F2(
 				return $elm$core$String$fromInt(model.sharedCount) + '/3';
 			case '步步为营':
 				return '恰好3步';
+			case '解法大师':
+				return $elm$core$String$fromInt(
+					A2(
+						$elm$core$Maybe$withDefault,
+						0,
+						$elm$core$List$head(
+							A2($elm$core$List$drop, 4, model.starCounts)))) + '/10';
 			default:
 				return '';
 		}
 	});
 var $author$project$Main$allAchievements = _List_fromArray(
-	['首杀', '三连冠', '五连冠', '十连冠', '速算大师', '百题斩', '每日首胜', '极速60秒', '火神', '键盘侠', '分享达人', '步步为营']);
+	['首杀', '三连冠', '五连冠', '十连冠', '速算大师', '百题斩', '每日首胜', '极速60秒', '火神', '键盘侠', '分享达人', '步步为营', '解法大师']);
+var $elm$core$List$sum = function (numbers) {
+	return A3($elm$core$List$foldl, $elm$core$Basics$add, 0, numbers);
+};
+var $author$project$Main$averageRating = function (counts) {
+	var weighted = $elm$core$List$sum(
+		A2(
+			$elm$core$List$indexedMap,
+			F2(
+				function (i, c) {
+					return (i + 1) * c;
+				}),
+			counts));
+	var total = $elm$core$List$sum(counts);
+	return (!total) ? 0.0 : (weighted / total);
+};
 var $elm$html$Html$button = _VirtualDom_node('button');
 var $elm$html$Html$Attributes$stringProperty = F2(
 	function (key, string) {
@@ -9471,9 +9890,6 @@ var $elm$html$Html$Attributes$stringProperty = F2(
 	});
 var $elm$html$Html$Attributes$class = $elm$html$Html$Attributes$stringProperty('className');
 var $elm$html$Html$code = _VirtualDom_node('code');
-var $elm$core$List$sum = function (numbers) {
-	return A3($elm$core$List$foldl, $elm$core$Basics$add, 0, numbers);
-};
 var $author$project$Main$dateToDays = function (s) {
 	var _v0 = A2($elm$core$String$split, '-', s);
 	if (((_v0.b && _v0.b.b) && _v0.b.b.b) && (!_v0.b.b.b.b)) {
@@ -9568,7 +9984,7 @@ var $author$project$Main$css = function (theme) {
 		_List_Nil,
 		_List_fromArray(
 			[
-				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }\n.daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }\n.daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }\n.daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }\n.daily-calendar { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }\n.daily-calendar-day { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; }\n.container.dark .daily-calendar-day { background: rgba(255,255,255,0.06); color: #8892b0; }\n.container.light .daily-calendar-day { background: rgba(0,0,0,0.04); color: #64748b; }\n.daily-calendar-day.completed { background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.2)) !important; color: #2ecc71 !important; }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n.keypad { display: flex; flex-direction: column; gap: 8px; align-items: center; margin: 12px 0; }\n.keypad-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.keypad-btn { min-width: 48px; height: 44px; border-radius: 10px; border: 1px solid; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: monospace; }\n.container.dark .keypad-btn { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.12); }\n.container.light .keypad-btn { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .keypad-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.container.light .keypad-btn:hover { background: rgba(0,0,0,0.08); transform: translateY(-2px); }\n.keypad-btn:active { transform: scale(0.92); }\n.keypad-num { min-width: 52px; font-size: 1.2em; }\n.keypad-op { min-width: 40px; }\n.keypad-del { color: #e94560 !important; }\n.keypad-clear { color: #ffd93d !important; }\n.keypad-submit { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; }\n.keypad-toggle { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 0.7em; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }\n.container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n\n.used-hint { text-align: center; font-size: 0.8em; margin: -4px 0 8px 0; font-weight: 600; }\n.container.dark .used-hint { color: #6bcb77; }\n.container.light .used-hint { color: #27ae60; }\n\n.skipped-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .skipped-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .skipped-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.skipped-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }\n.skipped-header h4 { margin: 0; color: #e94560; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.skipped-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }\n.skipped-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.9em; }\n.container.dark .skipped-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .skipped-item { background: rgba(0,0,0,0.05); color: #475569; }\n.skipped-ans { color: #e94560; font-size: 0.85em; }\n\n@keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }\n.pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }\n\n.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }\n.combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }\n@keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }\n\n.steps-panel { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .steps-panel { background: rgba(0,201,255,0.05); border: 1px solid rgba(0,201,255,0.15); }\n.container.light .steps-panel { background: rgba(0,201,255,0.03); border: 1px solid rgba(0,201,255,0.12); }\n.steps-title { font-weight: 700; color: #00c9ff; margin-bottom: 12px; font-size: 1em; }\n.steps-list { display: flex; flex-direction: column; gap: 8px; }\n.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 1em; }\n.container.dark .step-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .step-item { background: rgba(0,0,0,0.05); color: #475569; }\n.step-num { min-width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; }\n.step-arrow { color: #00c9ff; font-size: 1.2em; }\n.step-result { color: #e94560; font-weight: 700; }\n\n.ta-history { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .ta-history { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .ta-history { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.ta-history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }\n.container.dark .ta-history-title { color: #8892b0; }\n.container.light .ta-history-title { color: #64748b; }\n.ta-scores { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.ta-score { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 700; }\n.container.dark .ta-score { background: rgba(0,201,255,0.1); color: #00c9ff; }\n.container.light .ta-score { background: rgba(0,201,255,0.08); color: #0077ff; }\n.ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }\n\n.tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }\n.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }\n.container.dark .tutorial-box { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); color: #eee; }\n.container.light .tutorial-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #1a1a2e; }\n.tutorial-box h2 { margin: 0 0 12px 0; font-size: 1.5em; font-weight: 900; color: #e94560; }\n.tutorial-box p { margin: 8px 0; font-size: 0.95em; line-height: 1.6; }\n.container.dark .tutorial-box p { color: #8892b0; }\n.container.light .tutorial-box p { color: #64748b; }\n.tutorial-box .btn { margin-top: 16px; }\n\n.custom-input { width: 100%; padding: 12px 16px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.1em; font-family: monospace; text-align: center; margin: 12px 0; box-sizing: border-box; outline: none; transition: all 0.3s; }\n.container.dark .custom-input { background: rgba(0,0,0,0.25); color: #fff; }\n.container.light .custom-input { background: rgba(0,0,0,0.05); color: #1a1a2e; }\n.custom-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n\n.custom-examples { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0 16px 0; }\n.custom-example { padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid; }\n.container.dark .custom-example { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .custom-example { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .custom-example:hover { background: rgba(233,69,96,0.2); color: #fff; border-color: rgba(233,69,96,0.4); }\n.container.light .custom-example:hover { background: rgba(233,69,96,0.1); color: #1a1a2e; border-color: rgba(233,69,96,0.3); }\n\n.reduce-motion .particle { display: none; }\n.reduce-motion .card { animation: none; }\n.reduce-motion .msg-pulse { animation: none; }\n.reduce-motion .msg-shake { animation: none; }\n.reduce-motion .combo-popup { animation: none; opacity: 1; }\n.reduce-motion .achievement-toast { animation: none; }\n.reduce-motion .pop-animation { animation: none; }\n.reduce-motion .stat-fire { animation: none; }\n.reduce-motion .tutorial-box { animation: none; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
+				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.rating-panel { border-radius: 14px; padding: 16px; margin: 12px 0; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid; }\n.container.dark .rating-panel { background: rgba(255, 215, 0, 0.08); border-color: rgba(255, 215, 0, 0.25); }\n.container.light .rating-panel { background: rgba(255, 215, 0, 0.06); border-color: rgba(255, 215, 0, 0.2); }\n.rating-stars { font-size: 1.8em; margin-bottom: 4px; line-height: 1; }\n.rating-label { color: #ffd700; font-weight: 800; font-size: 1.1em; margin-bottom: 6px; }\n.container.dark .rating-label { text-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }\n.container.light .rating-label { text-shadow: 0 0 8px rgba(255, 215, 0, 0.25); }\n.rating-details { font-size: 0.85em; font-weight: 500; }\n.container.dark .rating-details { color: #8892b0; }\n.container.light .rating-details { color: #64748b; }\n.reduce-motion .rating-panel { animation: none; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }\n.daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }\n.daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }\n.daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }\n.daily-calendar { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }\n.daily-calendar-day { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; }\n.container.dark .daily-calendar-day { background: rgba(255,255,255,0.06); color: #8892b0; }\n.container.light .daily-calendar-day { background: rgba(0,0,0,0.04); color: #64748b; }\n.daily-calendar-day.completed { background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.2)) !important; color: #2ecc71 !important; }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n.keypad { display: flex; flex-direction: column; gap: 8px; align-items: center; margin: 12px 0; }\n.keypad-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.keypad-btn { min-width: 48px; height: 44px; border-radius: 10px; border: 1px solid; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: monospace; }\n.container.dark .keypad-btn { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.12); }\n.container.light .keypad-btn { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .keypad-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.container.light .keypad-btn:hover { background: rgba(0,0,0,0.08); transform: translateY(-2px); }\n.keypad-btn:active { transform: scale(0.92); }\n.keypad-num { min-width: 52px; font-size: 1.2em; }\n.keypad-op { min-width: 40px; }\n.keypad-del { color: #e94560 !important; }\n.keypad-clear { color: #ffd93d !important; }\n.keypad-submit { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; }\n.keypad-toggle { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 0.7em; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }\n.container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n\n.used-hint { text-align: center; font-size: 0.8em; margin: -4px 0 8px 0; font-weight: 600; }\n.container.dark .used-hint { color: #6bcb77; }\n.container.light .used-hint { color: #27ae60; }\n\n.skipped-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .skipped-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .skipped-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.skipped-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }\n.skipped-header h4 { margin: 0; color: #e94560; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.skipped-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }\n.skipped-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.9em; }\n.container.dark .skipped-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .skipped-item { background: rgba(0,0,0,0.05); color: #475569; }\n.skipped-ans { color: #e94560; font-size: 0.85em; }\n\n@keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }\n.pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }\n\n.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }\n.combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }\n@keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }\n\n.steps-panel { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .steps-panel { background: rgba(0,201,255,0.05); border: 1px solid rgba(0,201,255,0.15); }\n.container.light .steps-panel { background: rgba(0,201,255,0.03); border: 1px solid rgba(0,201,255,0.12); }\n.steps-title { font-weight: 700; color: #00c9ff; margin-bottom: 12px; font-size: 1em; }\n.steps-list { display: flex; flex-direction: column; gap: 8px; }\n.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 1em; }\n.container.dark .step-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .step-item { background: rgba(0,0,0,0.05); color: #475569; }\n.step-num { min-width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; }\n.step-arrow { color: #00c9ff; font-size: 1.2em; }\n.step-result { color: #e94560; font-weight: 700; }\n\n.ta-history { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .ta-history { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .ta-history { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.ta-history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }\n.container.dark .ta-history-title { color: #8892b0; }\n.container.light .ta-history-title { color: #64748b; }\n.ta-scores { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.ta-score { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 700; }\n.container.dark .ta-score { background: rgba(0,201,255,0.1); color: #00c9ff; }\n.container.light .ta-score { background: rgba(0,201,255,0.08); color: #0077ff; }\n.ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }\n\n.tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }\n.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }\n.container.dark .tutorial-box { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); color: #eee; }\n.container.light .tutorial-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #1a1a2e; }\n.tutorial-box h2 { margin: 0 0 12px 0; font-size: 1.5em; font-weight: 900; color: #e94560; }\n.tutorial-box p { margin: 8px 0; font-size: 0.95em; line-height: 1.6; }\n.container.dark .tutorial-box p { color: #8892b0; }\n.container.light .tutorial-box p { color: #64748b; }\n.tutorial-box .btn { margin-top: 16px; }\n\n.custom-input { width: 100%; padding: 12px 16px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.1em; font-family: monospace; text-align: center; margin: 12px 0; box-sizing: border-box; outline: none; transition: all 0.3s; }\n.container.dark .custom-input { background: rgba(0,0,0,0.25); color: #fff; }\n.container.light .custom-input { background: rgba(0,0,0,0.05); color: #1a1a2e; }\n.custom-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n\n.custom-examples { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0 16px 0; }\n.custom-example { padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid; }\n.container.dark .custom-example { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .custom-example { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .custom-example:hover { background: rgba(233,69,96,0.2); color: #fff; border-color: rgba(233,69,96,0.4); }\n.container.light .custom-example:hover { background: rgba(233,69,96,0.1); color: #1a1a2e; border-color: rgba(233,69,96,0.3); }\n\n.reduce-motion .particle { display: none; }\n.reduce-motion .card { animation: none; }\n.reduce-motion .msg-pulse { animation: none; }\n.reduce-motion .msg-shake { animation: none; }\n.reduce-motion .combo-popup { animation: none; opacity: 1; }\n.reduce-motion .achievement-toast { animation: none; }\n.reduce-motion .pop-animation { animation: none; }\n.reduce-motion .stat-fire { animation: none; }\n.reduce-motion .tutorial-box { animation: none; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
 			]));
 };
 var $author$project$Main$BackspaceInput = {$: 'BackspaceInput'};
@@ -9968,10 +10384,6 @@ var $author$project$Main$viewKeypad = function (model) {
 					])) : $elm$html$Html$text('')
 			]));
 };
-var $elm$core$Basics$clamp = F3(
-	function (low, high, number) {
-		return (_Utils_cmp(number, low) < 0) ? low : ((_Utils_cmp(number, high) > 0) ? high : number);
-	});
 var $author$project$Main$viewTimeAttackBar = function (timeLeft) {
 	var pct = A3($elm$core$Basics$clamp, 0, 100, ((timeLeft * 100) / 60) | 0);
 	var barClass = (timeLeft <= 10) ? 'time-attack-fill danger' : ((timeLeft <= 25) ? 'time-attack-fill warn' : 'time-attack-fill ok');
@@ -10001,8 +10413,8 @@ var $author$project$Main$view = function (model) {
 	var winRate = (!total) ? '0%' : ($elm$core$String$fromInt(
 		$elm$core$Basics$round((model.solved / total) * 100)) + '%');
 	var themeClass = function () {
-		var _v1 = model.theme;
-		if (_v1.$ === 'Dark') {
+		var _v2 = model.theme;
+		if (_v2.$ === 'Dark') {
 			return 'dark';
 		} else {
 			return 'light';
@@ -10013,6 +10425,14 @@ var $author$project$Main$view = function (model) {
 	var isReview = _Utils_eq(model.gameMode, $author$project$Main$Review);
 	var isDaily = _Utils_eq(model.gameMode, $author$project$Main$Daily);
 	var isCustom = _Utils_eq(model.gameMode, $author$project$Main$Custom);
+	var fiveStarCount = A2(
+		$elm$core$Maybe$withDefault,
+		0,
+		$elm$core$List$head(
+			A2($elm$core$List$drop, 4, model.starCounts)));
+	var avgRating = $author$project$Main$averageRating(model.starCounts);
+	var ratingStatText = (model.totalRated > 0) ? ($elm$core$String$fromFloat(
+		$elm$core$Basics$round(avgRating * 10) / 10) + '★') : '';
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
@@ -10640,6 +11060,65 @@ var $author$project$Main$view = function (model) {
 										$elm$html$Html$text(
 										$author$project$Main$formatTime(model.fastestSolve))
 									]))
+							])) : $elm$html$Html$text(''),
+						(model.totalRated > 0) ? A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('stat-box')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-label')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('平均')
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-value')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(ratingStatText)
+									]))
+							])) : $elm$html$Html$text(''),
+						(fiveStarCount > 0) ? A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('stat-box')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-label')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('五星')
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('stat-value')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(
+										$elm$core$String$fromInt(fiveStarCount))
+									]))
 							])) : $elm$html$Html$text('')
 					])),
 				A2(
@@ -10694,6 +11173,55 @@ var $author$project$Main$view = function (model) {
 					[
 						$elm$html$Html$text(model.message)
 					])),
+				function () {
+				var _v1 = model.lastRating;
+				if (_v1.$ === 'Just') {
+					var r = _v1.a;
+					return A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('rating-panel')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('rating-stars')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(
+										$author$project$Main$starsToString(r.stars))
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('rating-label')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(r.label)
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('rating-details')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text(
+										A2($elm$core$String$join, ' · ', r.details))
+									]))
+							]));
+				} else {
+					return $elm$html$Html$text('');
+				}
+			}(),
 				model.showHint ? A2(
 				$elm$html$Html$div,
 				_List_fromArray(
@@ -11546,7 +12074,7 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.15')
+						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.16')
 					]))
 			]));
 };
