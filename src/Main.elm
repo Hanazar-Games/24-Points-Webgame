@@ -141,6 +141,7 @@ type Msg
     | UpdateCustomInput String
     | StartCustomChallenge
     | CloseCustomPanel
+    | OpenCustomPanel
     | InstallPWA
     | InstallPromptChanged Bool
     | NetworkChanged Bool
@@ -429,10 +430,13 @@ parseCustomInput s =
     if String.isEmpty s then
         Err "请输入 4 个数字"
     else
-        let nums = s |> String.split "," |> List.map String.trim |> List.filterMap String.toInt
+        let parts = s |> String.split "," |> List.map String.trim |> List.filter (\p -> not (String.isEmpty p))
+            nums = List.filterMap String.toInt parts
         in
-        if List.length nums /= 4 then
+        if List.length parts /= 4 then
             Err "需要恰好 4 个数字，用逗号分隔"
+        else if List.length nums /= 4 then
+            Err "需要恰好 4 个有效数字，请检查是否包含非数字内容"
         else if List.any (\n -> n < 1 || n > 13) nums then
             Err "每个数字必须在 1-13 之间（A=1, J=11, Q=12, K=13）"
         else
@@ -1277,20 +1281,20 @@ update msg model =
             in
             case mode of
                 Daily ->
-                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False }
+                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False, showCustomPanel = False }
                     in ( newModel, Cmd.batch [ generateDailyCards model.dailyDate, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 TimeAttack ->
-                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
+                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Classic ->
-                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False }
+                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False, showCustomPanel = False }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Review ->
                     if List.isEmpty model.skippedProblems then
-                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False }
+                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False, showCustomPanel = False }
                         in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
                     else
-                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False }
+                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False }
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Custom ->
                     let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True }
@@ -1308,7 +1312,14 @@ update msg model =
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
 
         ToggleCustomPanel ->
-            ( { model | showCustomPanel = not model.showCustomPanel, customInput = if model.showCustomPanel then "" else model.customInput }, Cmd.none )
+            let newPanel = not model.showCustomPanel
+            in
+            if newPanel then
+                ( { model | showCustomPanel = True, customInput = model.customInput }
+                , Cmd.batch [ playSound "click", Task.attempt (\_ -> NoOp) (Dom.focus "custom-input") ]
+                )
+            else
+                ( { model | showCustomPanel = False, customInput = "" }, playSound "click" )
 
         UpdateCustomInput s ->
             ( { model | customInput = s }, Cmd.none )
@@ -1343,6 +1354,7 @@ update msg model =
                                     , shieldActive = False
                                     , inputHint = ""
                                     , liveResult = ""
+                                    , solverCache = newCache
                                     }
                             in
                             ( newModel
@@ -1354,7 +1366,10 @@ update msg model =
                             )
 
         CloseCustomPanel ->
-            ( { model | showCustomPanel = False, customInput = "" }, Cmd.none )
+            ( { model | showCustomPanel = False, customInput = "" }, playSound "click" )
+
+        OpenCustomPanel ->
+            ( { model | showCustomPanel = True }, Task.attempt (\_ -> NoOp) (Dom.focus "custom-input") )
 
         CardClick val ->
             if model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0) then
@@ -1649,7 +1664,7 @@ handleCorrect model =
                     else [ playSound "success", spawnParticles 30, vibrate 80 ]
             in
             ( newModel
-            , Cmd.batch ([ Task.perform (\_ -> ToggleCustomPanel) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+            , Cmd.batch ([ Task.perform (\_ -> OpenCustomPanel) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "custom-input") ] ++ sfx)
             )
 
 
@@ -1902,7 +1917,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }
 .diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }
 
-.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
 .mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
 .container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }
 .container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }
@@ -2041,6 +2056,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .reduce-motion .achievement-toast { animation: none; }
 .reduce-motion .pop-animation { animation: none; }
 .reduce-motion .stat-fire { animation: none; }
+.reduce-motion .tutorial-box { animation: none; }
 
 @media (max-width: 600px) {
     .header h1 { font-size: 2em; }
@@ -2185,6 +2201,7 @@ view model =
                     , input
                         [ class "custom-input"
                         , type_ "text"
+                        , id "custom-input"
                         , value model.customInput
                         , placeholder "例如：3,3,8,8"
                         , onInput UpdateCustomInput
@@ -2450,7 +2467,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.14" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.15" ]
         ]
 
 
