@@ -5,6 +5,7 @@ import Browser.Dom as Dom
 import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
 import Html.Attributes exposing (class, value, style, placeholder, type_, id, title, disabled)
 import Html.Events exposing (onClick, onInput, on, stopPropagationOn)
+import Html.Keyed as Keyed
 import Json.Decode as D
 import Json.Encode as E
 import Process
@@ -155,6 +156,7 @@ type Msg
     | InstallPromptChanged Bool
     | NetworkChanged Bool
     | ReceiveSFXSetting Bool
+    | DismissRating
     | NoOp
 
 type alias Flags =
@@ -587,8 +589,8 @@ rateSolution expr stepCount difficulty solveTime =
             , if bracketScore >= 2 then Just "括号极少，干净利落"
               else if bracketScore >= 1 then Just "括号简洁，层次清晰"
               else Nothing
-            , if speedScore >= 2 then Just (String.fromInt solveTime ++ "秒内速解，思维敏捷")
-              else if speedScore >= 1 then Just (String.fromInt solveTime ++ "秒完成，眼疾手快")
+            , if speedScore >= 2 && solveTime > 0 then Just (String.fromInt solveTime ++ "秒内速解，思维敏捷")
+              else if speedScore >= 1 && solveTime > 0 then Just (String.fromInt solveTime ++ "秒完成，眼疾手快")
               else Nothing
             , if hardScore > 0 then Just "高级难度，游刃有余" else Nothing
             ] |> List.filterMap identity
@@ -1011,7 +1013,7 @@ decodeStats json model =
                         , theme = base.theme
                         , timeAttackBest = max model.timeAttackBest extra.timeAttackBest
                         , dailyCompleted = (extra.dailyCompletedDate == model.dailyDate)
-                        , dailyBestTime = max model.dailyBestTime extra.dailyBestTime
+                        , dailyBestTime = if extra.dailyCompletedDate == model.dailyDate then max model.dailyBestTime extra.dailyBestTime else 0
                         , fastestSolve = if extra.fastestSolve > 0 then extra.fastestSolve else model.fastestSolve
                         , totalAttempts = max model.totalAttempts extra.totalAttempts
                         , keypadEnabled = extra.keypadEnabled
@@ -1141,9 +1143,11 @@ update msg model =
                     ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
                 else if model.gameMode == Custom then
                     ( { model | solverCache = newCache, message = "自定义题目无解，请换一组数字", messageType = Error }, Cmd.none )
+                else if model.gameMode == Review then
+                    ( { model | gameMode = Classic, solverCache = newCache, message = "错题本已清空，返回经典模式", messageType = Info }, generateCards model.difficulty )
                 else
                     ( { model | solverCache = newCache }, generateCards model.difficulty )
-            else if model.difficulty == Hard && not (hasDivisionSolution solutions) && model.gameMode /= Custom then
+            else if model.difficulty == Hard && not (hasDivisionSolution solutions) && model.gameMode /= Custom && model.gameMode /= Review then
                 if model.gameMode == Daily then
                     ( { model | solverCache = newCache }, generateDailyCards model.dailyDate )
                 else
@@ -1153,6 +1157,8 @@ update msg model =
                     baseMsg = case model.gameMode of
                         Daily -> "今日挑战！用这4张牌算出24"
                         TimeAttack -> "计时挑战！答对+10秒，跳过-5秒"
+                        Custom -> "自定义挑战开始！用这4张牌算出24"
+                        Review -> "错题复习！用这4张牌算出24"
                         _ -> if isFirstGame then "请用下面4张牌算出24点！" else "新的一组牌！"
                     hashCmd =
                         if model.gameMode == Classic then
@@ -1174,6 +1180,8 @@ update msg model =
                     , timer = 0
                     , pendingNewCards = False
                     , showAllAnswers = False
+                    , showSteps = False
+                    , stepByStep = []
                     , timeAttackTotalQuestions = if model.gameMode == TimeAttack then model.timeAttackTotalQuestions + 1 else model.timeAttackTotalQuestions
                     , inputHint = ""
                     , liveResult = ""
@@ -1377,7 +1385,7 @@ update msg model =
 
         StorageLoaded json ->
             let newModel = decodeStats json model
-            in ( newModel, Cmd.none )
+            in ( newModel, saveCmd newModel )
 
         DelayedNewCards ->
             case model.gameMode of
@@ -1575,7 +1583,8 @@ update msg model =
             let hash = String.join "," (List.map (\c -> String.fromInt c.value) model.cards)
                 shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/#" ++ hash
                 newShared = model.sharedCount + 1
-            in ( { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }, copyToClipboard shareText )
+                newModel = { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }
+            in ( newModel, Cmd.batch [ copyToClipboard shareText, saveCmd newModel ] )
 
         ExportData ->
             ( { model | message = "数据已复制到剪贴板", messageType = Info }
@@ -1601,6 +1610,9 @@ update msg model =
 
         ReceiveSFXSetting enabled ->
             ( { model | sfxEnabled = enabled }, Cmd.none )
+
+        DismissRating ->
+            ( { model | lastRating = Nothing }, Cmd.none )
 
         NoOp -> (model, Cmd.none )
 
@@ -1685,7 +1697,7 @@ handleCorrect model =
                             if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
                             else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles (30 + newStreak * 5), vibrate 80 ]
                             else [ playSound "success", spawnParticles 30, vibrate 80 ]
-                    in baseSfx ++ ratingSfx
+                    in baseSfx ++ (if hasNewAch then [] else ratingSfx)
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 600), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1732,7 +1744,7 @@ handleCorrect model =
                             if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
                             else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
                             else [ playSound "success", spawnParticles 30, vibrate 80 ]
-                    in baseSfx ++ ratingSfx
+                    in baseSfx ++ (if hasNewAch then [] else ratingSfx)
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1772,7 +1784,7 @@ handleCorrect model =
                             if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
                             else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
                             else [ playSound "success", spawnParticles 30, vibrate 80 ]
-                    in baseSfx ++ ratingSfx
+                    in baseSfx ++ (if hasNewAch then [] else ratingSfx)
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1815,7 +1827,7 @@ handleCorrect model =
                             if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
                             else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
                             else [ playSound "success", spawnParticles 30, vibrate 80 ]
-                    in baseSfx ++ ratingSfx
+                    in baseSfx ++ (if hasNewAch then [] else ratingSfx)
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
@@ -1849,13 +1861,16 @@ handleCorrect model =
                     , totalRated = commonFields.totalRated
                     , starCounts = commonFields.starCounts
                     , lastRating = commonFields.lastRating
+                    , showAllAnswers = False
+                    , inputHint = ""
+                    , liveResult = ""
                     }
                 sfx =
                     let baseSfx =
                             if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
                             else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
                             else [ playSound "success", spawnParticles 30, vibrate 80 ]
-                    in baseSfx ++ ratingSfx
+                    in baseSfx ++ (if hasNewAch then [] else ratingSfx)
             in
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> OpenCustomPanel) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "custom-input") ] ++ sfx)
@@ -2040,9 +2055,13 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }
 .container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }
 
-.rating-panel { border-radius: 14px; padding: 16px; margin: 12px 0; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid; }
+.rating-panel { border-radius: 14px; padding: 16px; margin: 12px 0; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid; position: relative; }
 .container.dark .rating-panel { background: rgba(255, 215, 0, 0.08); border-color: rgba(255, 215, 0, 0.25); }
 .container.light .rating-panel { background: rgba(255, 215, 0, 0.06); border-color: rgba(255, 215, 0, 0.2); }
+.rating-close { position: absolute; top: 6px; right: 10px; background: transparent; border: none; font-size: 1.3em; line-height: 1; cursor: pointer; padding: 4px; margin: 0; opacity: 0.5; transition: opacity 0.2s; font-family: inherit; }
+.rating-close:hover { opacity: 0.9; }
+.container.dark .rating-close { color: #ffd700; }
+.container.light .rating-close { color: #c78d0a; }
 .rating-stars { font-size: 1.8em; margin-bottom: 4px; line-height: 1; }
 .rating-label { color: #ffd700; font-weight: 800; font-size: 1.1em; margin-bottom: 6px; }
 .container.dark .rating-label { text-shadow: 0 0 12px rgba(255, 215, 0, 0.4); }
@@ -2052,7 +2071,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.light .rating-details { color: #64748b; }
 .reduce-motion .rating-panel { animation: none; }
 
-.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }
+.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10003; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }
 .achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }
 .achievement-toast .ach-name { font-size: 1.2em; }
 @keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }
@@ -2061,15 +2080,18 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }
 .container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }
 .achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+.container.light .achievements-panel h4 { color: #c78d0a; }
 .ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }
 .container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }
 .container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }
 .ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }
+.container.light .ach-badge.unlocked { color: #c78d0a; }
 
 .daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }
 .container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }
 .container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }
 .daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }
+.container.light .daily-streak-title { color: #c78d0a; }
 .daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
 .daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }
 .daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }
@@ -2115,7 +2137,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }
 .container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }
 
-.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }
+.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
 .container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }
 .container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }
@@ -2204,7 +2226,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 @keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 .pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
-.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }
+.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10003; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }
 .combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }
 @keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }
 
@@ -2256,6 +2278,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 
 .reduce-motion .particle { display: none; }
 .reduce-motion .card { animation: none; }
+.reduce-motion .card:hover { transform: none; }
 .reduce-motion .msg-pulse { animation: none; }
 .reduce-motion .msg-shake { animation: none; }
 .reduce-motion .combo-popup { animation: none; opacity: 1; }
@@ -2530,10 +2553,18 @@ view model =
         , div [ class (msgClass model.messageType) ] [ text model.message ]
         , case model.lastRating of
             Just r ->
-                div [ class "rating-panel" ]
-                    [ div [ class "rating-stars" ] [ text (starsToString r.stars) ]
-                    , div [ class "rating-label" ] [ text r.label ]
-                    , div [ class "rating-details" ] [ text (String.join " · " r.details) ]
+                let ratingKey = String.fromInt r.stars ++ "-" ++ r.label ++ "-" ++ String.join "-" r.details
+                in
+                Keyed.node "div"
+                    [ class "rating-panel" ]
+                    [ ( ratingKey
+                      , div []
+                            [ button [ class "rating-close", type_ "button", onClick DismissRating, title "关闭" ] [ text "×" ]
+                            , div [ class "rating-stars" ] [ text (starsToString r.stars) ]
+                            , div [ class "rating-label" ] [ text r.label ]
+                            , div [ class "rating-details" ] [ text (String.join " · " r.details) ]
+                            ]
+                      )
                     ]
             Nothing -> text ""
         , if model.showHint then
@@ -2702,7 +2733,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.17" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.18" ]
         ]
 
 
