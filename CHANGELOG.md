@@ -4,7 +4,37 @@
 
 ---
 
-## 🚀 v0.4.18 — 当前最新版本
+## 🚀 v0.4.19 — 当前最新版本
+
+**发布日期**: 2026-06-07
+
+### 🔍 第三轮深度审查与修复
+在 v0.4.18 基础上进行更全面的代码审查，覆盖数据持久化、状态管理、UI/UX、SFX 和算法边界情况，修复了 12+ 项问题。
+
+#### 💾 数据持久化修复（严重）
+1. **`dailyHistory` 未保存** — 修复了连续打卡历史在页面刷新后完全丢失的问题；`encodeStats` 现在正确写入 `dailyHistory` 字段。
+2. **`skippedProblems` 未保存** — 修复了错题本在页面刷新后完全丢失的问题；新增 `skippedProblems` 的编码/解码器，并在 `decodeStats` 中限制最多保留 20 条。
+3. **`keypadEnabled` 未保存** — 修复了虚拟键盘显示/隐藏偏好在刷新后恢复默认值的问题；`ToggleKeypad` 现在会调用 `saveCmd`。
+
+#### 🧹 状态管理修复
+4. **切换模式/难度时评分面板残留** — `SetGameMode`、`ChangeDifficulty`、`StartTimeAttack`、`StartReview`、`NewGame` 的所有分支现在都会清除 `lastRating`、`showSteps` 和 `stepByStep`，避免旧状态在新模式下继续显示。
+5. **自定义模式答对后步骤面板残留** — Custom `handleCorrect` 现在会重置 `showSteps` 和 `stepByStep`；Custom `Skip` 也会清理 `lastRating` 和步骤状态。
+6. **Hard 模式除法验证逻辑漏洞** — 修复了 `SubmitAnswer` 中 `parseExpr` 返回 `Nothing` 时意外调用 `handleCorrect` 的边界情况，现在会正确显示错误信息。
+7. **评分面板动画不重置** — `Html.Keyed` 的 key 从基于评分内容改为基于 `totalGames + stars`，确保连续获得相同星级时动画仍能重新播放。
+8. **`normalizeStarCounts` 负值防护** — 当传入列表长度超过 5 时，避免 `List.repeat` 接收负参数。
+9. **"步步为营" 成就重复解锁** — 修复了首次答对且恰好 3 步时，`checkAchievements` 和 `bubuAchievement` 同时添加导致列表中出现重复项的 bug。
+
+#### 🎮 UI/UX / SFX 修复
+10. **虚拟键盘禁用状态** — 当输入框被禁用（如 `pendingNewCards` 或 TimeAttack 时间到）时，虚拟键盘的所有按钮（数字、运算符、退格、清除、提交）现在也会同步禁用，避免用户误触。
+11. **成就解锁消息覆盖得分信息** — `buildMessage` 重构为在原有前缀消息后附加成就信息，TimeAttack 模式下用户现在能同时看到"+N分！+10秒！"和"🏆 解锁成就！"。
+
+### 🔧 维护
+- 全站版本号统一升级为 **v0.4.19**
+- Service Worker 缓存版本从 `v21` 升级到 `v22`
+
+---
+
+## 🚀 v0.4.18
 
 **发布日期**: 2026-06-07
 

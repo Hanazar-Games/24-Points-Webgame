@@ -568,7 +568,8 @@ formatRating n =
 
 normalizeStarCounts : List Int -> List Int
 normalizeStarCounts counts =
-    let padded = counts ++ List.repeat (5 - List.length counts) 0
+    let len = List.length counts
+        padded = if len < 5 then counts ++ List.repeat (5 - len) 0 else counts
     in List.take 5 padded
 
 
@@ -926,6 +927,8 @@ encodeStats model =
             , ("sharedCount", E.int model.sharedCount)
             , ("stepsWithKeypad", E.int model.stepsWithKeypad)
             , ("timeAttackHistory", E.list encodeTimeAttackRecord model.timeAttackHistory)
+            , ("dailyHistory", E.list E.string model.dailyHistory)
+            , ("skippedProblems", E.list (\p -> E.object [("cardValues", E.list E.int p.cardValues), ("answer", E.string p.answer)]) model.skippedProblems)
             , ("totalRated", E.int model.totalRated)
             , ("starCounts", E.list E.int model.starCounts)
             ]
@@ -999,9 +1002,14 @@ decodeStats json model =
                 , D.list D.int |> D.map (List.map (\score -> { score = score, accuracy = "N/A", date = "" }))
                 ]
 
+        skippedProblemDecoder =
+            D.map2 SkippedProblem
+                (D.maybe (D.field "cardValues" (D.list D.int)) |> D.map (Maybe.withDefault []))
+                (D.maybe (D.field "answer" D.string) |> D.map (Maybe.withDefault ""))
+
         fullDecoder =
-            D.map5
-                (\base extra ratings tah dh ->
+            D.map6
+                (\base extra ratings tah dh sp ->
                     { model
                         | bestStreak = max model.bestStreak base.bestStreak
                         , solved = max model.solved base.totalSolved
@@ -1021,6 +1029,7 @@ decodeStats json model =
                         , stepsWithKeypad = max model.stepsWithKeypad extra.stepsWithKeypad
                         , timeAttackHistory = tah
                         , dailyHistory = dh
+                        , skippedProblems = List.take 20 sp
                         , totalRated = max model.totalRated ratings.totalRated
                         , starCounts = normalizeStarCounts (List.map2 max model.starCounts ratings.starCounts)
                         }
@@ -1030,6 +1039,7 @@ decodeStats json model =
                 ratingDecoder
                 (D.maybe (D.field "timeAttackHistory" timeAttackHistoryDecoder) |> D.map (Maybe.withDefault []))
                 (D.maybe (D.field "dailyHistory" (D.list D.string)) |> D.map (Maybe.withDefault []))
+                (D.maybe (D.field "skippedProblems" (D.list skippedProblemDecoder)) |> D.map (Maybe.withDefault []))
     in
     case D.decodeString fullDecoder json of
         Ok newModel -> newModel
@@ -1059,7 +1069,7 @@ checkAchievements model =
             , ("火神", model.streak >= 20)
             , ("键盘侠", model.stepsWithKeypad >= 10)
             , ("分享达人", model.sharedCount >= 3)
-            , ("步步为营", model.solved >= 1)
+            , ("步步为营", False)
             , ("解法大师", (List.drop 4 model.starCounts |> List.head |> Maybe.withDefault 0) >= 10)
             ]
     in List.filterMap (\(name, cond) -> if cond && not (List.member name model.achievements) then Just name else Nothing) all
@@ -1217,7 +1227,8 @@ update msg model =
                                         let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                                         in ( { model | message = "Hard 模式答案必须用到除法！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }, playSound "error" )
                                 Nothing ->
-                                    handleCorrect { model | totalAttempts = newAttempts }
+                                    let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
+                                    in ( { model | message = "Hard 模式答案必须用到除法！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }, playSound "error" )
                         else
                             handleCorrect { model | totalAttempts = newAttempts }
                     else
@@ -1257,17 +1268,17 @@ update msg model =
         NewGame ->
             case model.gameMode of
                 TimeAttack ->
-                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
+                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Review ->
-                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
+                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
                 Custom ->
-                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False, lastRating = Nothing }
+                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     , playSound "click"
                     )
                 _ ->
-                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
+                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     , Cmd.batch [ generateCards model.difficulty, playSound "click" ]
                     )
 
@@ -1314,6 +1325,9 @@ update msg model =
                                     , messageType = Info
                                     , showAllAnswers = True
                                     , shieldActive = if hasShield then True else model.shieldActive
+                                    , lastRating = Nothing
+                                    , showSteps = False
+                                    , stepByStep = []
                                 }
                         in
                         ( newModel
@@ -1417,7 +1431,7 @@ update msg model =
             if model.pendingNewCards then
                 ( model, Cmd.none )
             else
-                ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
+                ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                 , Cmd.batch [ generateCards diff, playSound "click" ]
                 )
 
@@ -1430,34 +1444,34 @@ update msg model =
             in
             case mode of
                 Daily ->
-                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False, showCustomPanel = False }
+                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ generateDailyCards model.dailyDate, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 TimeAttack ->
-                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False }
+                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Classic ->
-                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False, showCustomPanel = False }
+                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Review ->
                     if List.isEmpty model.skippedProblems then
-                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False, showCustomPanel = False }
+                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                         in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
                     else
-                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False }
+                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Custom ->
-                    let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True }
+                    let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True, lastRating = Nothing, showSteps = False, stepByStep = [] }
                     in ( newModel, Cmd.batch [ if wasTimeAttack then releaseWakeLock () else Cmd.none, playSound "click" ] )
 
         StartTimeAttack ->
-            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
+            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
             in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
 
         StartReview ->
             if List.isEmpty model.skippedProblems then
-                ( { model | message = "错题本为空", messageType = Info, gameMode = Classic, shieldActive = False }, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
+                ( { model | message = "错题本为空", messageType = Info, gameMode = Classic, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
             else
-                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False }
+                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
 
         ToggleCustomPanel ->
@@ -1556,7 +1570,8 @@ update msg model =
                 in ( { model | input = newInput, liveResult = live, inputHint = combinedHint }, playSound "key" )
 
         ToggleKeypad ->
-            ( { model | keypadEnabled = not model.keypadEnabled }, Cmd.none )
+            let newModel = { model | keypadEnabled = not model.keypadEnabled }
+            in ( newModel, saveCmd newModel )
 
         ToggleSkippedProblems ->
             ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
@@ -1644,10 +1659,7 @@ handleCorrect model =
                 Just r -> " " ++ starsToString r.stars ++ " " ++ r.label ++ "！"
                 Nothing -> ""
         buildMessage prefix hasNewAch =
-            if hasNewAch then
-                "解锁成就！ " ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg
-            else
-                prefix ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg
+            prefix ++ model.input ++ " = 24 " ++ stepMsg ++ ratingMsg ++ (if hasNewAch then " 🏆 解锁成就！" else "")
         ratingSfx =
             case rating of
                 Just r -> if r.stars == 5 then [ playSound "achievement" ] else []
@@ -1864,6 +1876,8 @@ handleCorrect model =
                     , showAllAnswers = False
                     , inputHint = ""
                     , liveResult = ""
+                    , showSteps = False
+                    , stepByStep = []
                     }
                 sfx =
                     let baseSfx =
@@ -2365,17 +2379,18 @@ viewKeypad model =
                 |> List.foldl (\c acc -> if List.any (\existing -> existing.value == c.value) acc then acc else c :: acc) []
                 |> List.sortBy .value
         ops = ["+", "-", "*", "/", "(", ")"]
+        inputDisabled = model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0)
     in
     div [ class "keypad" ]
         [ button [ class "keypad-toggle", onClick ToggleKeypad ] [ text (if model.keypadEnabled then "隐藏键盘" else "显示键盘") ]
         , if model.keypadEnabled then
             div []
-                [ div [ class "keypad-row" ] (List.map (\c -> button [ class "keypad-btn keypad-num", onClick (KeypadInput (String.fromInt c.value)) ] [ text c.display ]) uniqueCards)
-                , div [ class "keypad-row" ] (List.map (\o -> button [ class "keypad-btn keypad-op", onClick (KeypadInput o) ] [ text o ]) ops)
+                [ div [ class "keypad-row" ] (List.map (\c -> button [ class "keypad-btn keypad-num", disabled inputDisabled, onClick (KeypadInput (String.fromInt c.value)) ] [ text c.display ]) uniqueCards)
+                , div [ class "keypad-row" ] (List.map (\o -> button [ class "keypad-btn keypad-op", disabled inputDisabled, onClick (KeypadInput o) ] [ text o ]) ops)
                 , div [ class "keypad-row" ]
-                    [ button [ class "keypad-btn keypad-del", onClick BackspaceInput ] [ text "⌫" ]
-                    , button [ class "keypad-btn keypad-clear", onClick (UpdateInput "") ] [ text "C" ]
-                    , button [ class "keypad-btn keypad-submit", onClick SubmitAnswer ] [ text "✓" ]
+                    [ button [ class "keypad-btn keypad-del", disabled inputDisabled, onClick BackspaceInput ] [ text "⌫" ]
+                    , button [ class "keypad-btn keypad-clear", disabled inputDisabled, onClick (UpdateInput "") ] [ text "C" ]
+                    , button [ class "keypad-btn keypad-submit", disabled inputDisabled, onClick SubmitAnswer ] [ text "✓" ]
                     ]
                 ]
           else
@@ -2553,7 +2568,7 @@ view model =
         , div [ class (msgClass model.messageType) ] [ text model.message ]
         , case model.lastRating of
             Just r ->
-                let ratingKey = String.fromInt r.stars ++ "-" ++ r.label ++ "-" ++ String.join "-" r.details
+                let ratingKey = String.fromInt model.totalGames ++ "-" ++ String.fromInt r.stars
                 in
                 Keyed.node "div"
                     [ class "rating-panel" ]
@@ -2733,7 +2748,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.18" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.19" ]
         ]
 
 
