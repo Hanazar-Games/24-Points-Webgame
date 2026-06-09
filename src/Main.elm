@@ -4,7 +4,7 @@ import Browser
 import Browser.Dom as Dom
 import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
 import Html.Attributes exposing (class, value, style, placeholder, type_, id, title, disabled)
-import Html.Events exposing (onClick, onInput, on)
+import Html.Events exposing (onClick, onInput, on, stopPropagationOn)
 import Json.Decode as D
 import Json.Encode as E
 import Process
@@ -28,7 +28,7 @@ type Difficulty = Easy | Normal | Hard
 
 type Theme = Dark | Light
 
-type GameMode = Classic | Daily | TimeAttack | Review
+type GameMode = Classic | Daily | TimeAttack | Review | Custom
 
 type MsgType = Success | Error | Info | None
 
@@ -86,6 +86,8 @@ type alias Model =
     , canInstallPWA : Bool
     , isOnline : Bool
     , reduceMotion : Bool
+    , customInput : String
+    , showCustomPanel : Bool
     }
 
 type alias SkippedProblem =
@@ -135,6 +137,10 @@ type Msg
     | TriggerImport
     | DismissTutorial
     | StartReview
+    | ToggleCustomPanel
+    | UpdateCustomInput String
+    | StartCustomChallenge
+    | CloseCustomPanel
     | InstallPWA
     | InstallPromptChanged Bool
     | NetworkChanged Bool
@@ -416,6 +422,32 @@ parseHashCards hash =
     else
         let nums = hash |> String.replace "#" "" |> String.split "," |> List.filterMap String.toInt
         in if List.length nums == 4 then Just nums else Nothing
+
+
+parseCustomInput : String -> Result String (List Int)
+parseCustomInput s =
+    if String.isEmpty s then
+        Err "请输入 4 个数字"
+    else
+        let nums = s |> String.split "," |> List.map String.trim |> List.filterMap String.toInt
+        in
+        if List.length nums /= 4 then
+            Err "需要恰好 4 个数字，用逗号分隔"
+        else if List.any (\n -> n < 1 || n > 13) nums then
+            Err "每个数字必须在 1-13 之间（A=1, J=11, Q=12, K=13）"
+        else
+            Ok nums
+
+
+validateCustomCards : Dict.Dict String (List String) -> List Int -> (Result String (List Int), Dict.Dict String (List String))
+validateCustomCards cache nums =
+    let (solutions, newCache) = solve24Cached cache (List.map toFloat nums)
+    in
+    if List.isEmpty solutions then
+        (Err "这 4 个数字无法算出 24，请换一组试试", newCache)
+    else
+        (Ok nums, newCache)
+
 
 hasDivision : String -> Bool
 hasDivision s = String.contains "/" s
@@ -705,6 +737,8 @@ init flags =
             , canInstallPWA = False
             , isOnline = True
             , reduceMotion = flags.prefersReducedMotion
+            , customInput = ""
+            , showCustomPanel = False
             }
     in
     case parseHashCards flags.hash of
@@ -1075,6 +1109,10 @@ update msg model =
                 Review ->
                     let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
                     in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
+                Custom ->
+                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False }
+                    , playSound "click"
+                    )
                 _ ->
                     ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
                     , Cmd.batch [ generateCards model.difficulty, playSound "click" ]
@@ -1112,6 +1150,22 @@ update msg model =
                         , Cmd.batch
                             [ Task.perform (\_ -> DelayedNewCards) (Process.sleep 1500)
                             , saveCmd newModel
+                            , playSound "click"
+                            ]
+                        )
+                    Custom ->
+                        let newModel =
+                                { model
+                                    | streak = if hasShield then model.streak else 0
+                                    , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
+                                    , messageType = Info
+                                    , showAllAnswers = True
+                                    , shieldActive = if hasShield then True else model.shieldActive
+                                }
+                        in
+                        ( newModel
+                        , Cmd.batch
+                            [ saveCmd newModel
                             , playSound "click"
                             ]
                         )
@@ -1238,6 +1292,9 @@ update msg model =
                     else
                         let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False }
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
+                Custom ->
+                    let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True }
+                    in ( newModel, Cmd.batch [ if wasTimeAttack then releaseWakeLock () else Cmd.none, playSound "click" ] )
 
         StartTimeAttack ->
             let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
@@ -1249,6 +1306,55 @@ update msg model =
             else
                 let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False }
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
+
+        ToggleCustomPanel ->
+            ( { model | showCustomPanel = not model.showCustomPanel, customInput = if model.showCustomPanel then "" else model.customInput }, Cmd.none )
+
+        UpdateCustomInput s ->
+            ( { model | customInput = s }, Cmd.none )
+
+        StartCustomChallenge ->
+            case parseCustomInput model.customInput of
+                Err errMsg ->
+                    ( { model | message = errMsg, messageType = Error }, playSound "error" )
+                Ok nums ->
+                    let (validation, newCache) = validateCustomCards model.solverCache nums
+                    in
+                    case validation of
+                        Err errMsg ->
+                            ( { model | message = errMsg, messageType = Error, solverCache = newCache }, playSound "error" )
+                        Ok _ ->
+                            let cards = valuesToCards nums
+                                newModel =
+                                    { model
+                                    | cards = cards
+                                    , gameMode = Custom
+                                    , streak = 0
+                                    , input = ""
+                                    , showAllAnswers = False
+                                    , showHint = False
+                                    , hintLevel = 0
+                                    , newAchievements = []
+                                    , message = "自定义挑战开始！用这 4 张牌算出 24"
+                                    , messageType = Info
+                                    , pendingNewCards = False
+                                    , showCustomPanel = False
+                                    , timer = 0
+                                    , shieldActive = False
+                                    , inputHint = ""
+                                    , liveResult = ""
+                                    }
+                            in
+                            ( newModel
+                            , Cmd.batch
+                                [ Task.succeed cards |> Task.perform NewCards
+                                , playSound "click"
+                                , if model.gameMode == TimeAttack then releaseWakeLock () else Cmd.none
+                                ]
+                            )
+
+        CloseCustomPanel ->
+            ( { model | showCustomPanel = False, customInput = "" }, Cmd.none )
 
         CardClick val ->
             if model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0) then
@@ -1510,6 +1616,41 @@ handleCorrect model =
             ( newModel
             , Cmd.batch ([ Task.perform (\_ -> DelayedNewCards) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
             )
+        Custom ->
+            let newStreak = model.streak + 1
+                newBestStreak = max newStreak model.bestStreak
+                newSolved = model.solved + 1
+                newAch = checkAchievements { model | streak = newStreak, solved = newSolved, stepsWithKeypad = newStepsWithKeypad } ++ bubuAchievement
+                hasNewAch = not (List.isEmpty newAch)
+                newHistory = addToHistory model.input model.history
+                newModel = { model
+                    | message = if hasNewAch then "解锁成就！" ++ model.input ++ " = 24 " ++ stepMsg else "自定义挑战正确！" ++ model.input ++ " = 24 " ++ stepMsg
+                    , messageType = Success
+                    , streak = newStreak
+                    , solved = newSolved
+                    , bestStreak = newBestStreak
+                    , input = ""
+                    , showHint = False
+                    , hintLevel = 0
+                    , achievements = model.achievements ++ newAch
+                    , newAchievements = newAch
+                    , achievementTimer = if hasNewAch then 5 else 0
+                    , history = newHistory
+                    , pendingNewCards = False
+                    , fastestSolve = newFastest
+                    , stepsWithKeypad = newStepsWithKeypad
+                    , comboDisplay = Just newStreak
+                    , comboTimer = 2
+                    , shieldActive = newShield
+                    }
+                sfx =
+                    if hasNewAch then [ playSound "achievement", spawnParticles 50, vibrate 200 ]
+                    else if newStreak >= 2 then [ playSound "success", playSound ("streak:" ++ String.fromInt newStreak), spawnParticles 40, vibrate 80 ]
+                    else [ playSound "success", spawnParticles 30, vibrate 80 ]
+            in
+            ( newModel
+            , Cmd.batch ([ Task.perform (\_ -> ToggleCustomPanel) (Process.sleep 800), saveCmd newModel, Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] ++ sfx)
+            )
 
 
 dateToDays : String -> Int
@@ -1561,6 +1702,7 @@ gameModeName mode =
         Daily -> "每日"
         TimeAttack -> "计时"
         Review -> "复习"
+        Custom -> "自定义"
 
 themeName : Theme -> String
 themeName t =
@@ -1879,6 +2021,18 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.light .tutorial-box p { color: #64748b; }
 .tutorial-box .btn { margin-top: 16px; }
 
+.custom-input { width: 100%; padding: 12px 16px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.1em; font-family: monospace; text-align: center; margin: 12px 0; box-sizing: border-box; outline: none; transition: all 0.3s; }
+.container.dark .custom-input { background: rgba(0,0,0,0.25); color: #fff; }
+.container.light .custom-input { background: rgba(0,0,0,0.05); color: #1a1a2e; }
+.custom-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }
+
+.custom-examples { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0 16px 0; }
+.custom-example { padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid; }
+.container.dark .custom-example { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }
+.container.light .custom-example { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }
+.container.dark .custom-example:hover { background: rgba(233,69,96,0.2); color: #fff; border-color: rgba(233,69,96,0.4); }
+.container.light .custom-example:hover { background: rgba(233,69,96,0.1); color: #1a1a2e; border-color: rgba(233,69,96,0.3); }
+
 .reduce-motion .particle { display: none; }
 .reduce-motion .card { animation: none; }
 .reduce-motion .msg-pulse { animation: none; }
@@ -2005,6 +2159,7 @@ view model =
         isTimeAttack = model.gameMode == TimeAttack
         isDaily = model.gameMode == Daily
         isReview = model.gameMode == Review
+        isCustom = model.gameMode == Custom
     in
     div [ class ("container " ++ themeClass ++ if model.reduceMotion then " reduce-motion" else "") ]
         [ css model.theme
@@ -2018,6 +2173,33 @@ view model =
                     , p [] [ text "🔥 连击解锁护盾保护" ]
                     , p [] [ text "📱 支持 PWA 离线游玩" ]
                     , button [ class "btn btn-primary", onClick DismissTutorial ] [ text "开始挑战" ]
+                    ]
+                ]
+          else
+            text ""
+        , if model.showCustomPanel then
+            div [ class "tutorial-overlay", onClick CloseCustomPanel ]
+                [ div [ class "tutorial-box", stopPropagationOn "click" (D.succeed (NoOp, True)) ]
+                    [ h2 [] [ text "🎯 自定义挑战" ]
+                    , p [] [ text "输入 4 个 1-13 的数字，用逗号分隔" ]
+                    , input
+                        [ class "custom-input"
+                        , type_ "text"
+                        , value model.customInput
+                        , placeholder "例如：3,3,8,8"
+                        , onInput UpdateCustomInput
+                        ]
+                        []
+                    , div [ class "custom-examples" ]
+                        [ span [ class "custom-example", onClick (UpdateCustomInput "3,3,8,8") ] [ text "3,3,8,8" ]
+                        , span [ class "custom-example", onClick (UpdateCustomInput "4,4,10,10") ] [ text "4,4,10,10" ]
+                        , span [ class "custom-example", onClick (UpdateCustomInput "1,5,5,5") ] [ text "1,5,5,5" ]
+                        , span [ class "custom-example", onClick (UpdateCustomInput "1,3,4,6") ] [ text "1,3,4,6" ]
+                        ]
+                    , div [ class "buttons-row" ]
+                        [ button [ class "btn btn-primary", onClick StartCustomChallenge ] [ text "开始挑战" ]
+                        , button [ class "btn btn-secondary", onClick CloseCustomPanel ] [ text "取消" ]
+                        ]
                     ]
                 ]
           else
@@ -2045,6 +2227,7 @@ view model =
             , button [ class (if model.gameMode == TimeAttack then "mode-btn active" else "mode-btn"), onClick (SetGameMode TimeAttack) ] [ text "计时挑战" ]
             , button [ class (if model.gameMode == Review then "mode-btn active" else "mode-btn"), onClick (SetGameMode Review), title "复习错题本中的题目" ]
                 [ text ("错题复习" ++ if List.isEmpty model.skippedProblems then "" else " (" ++ String.fromInt (List.length model.skippedProblems) ++ ")") ]
+            , button [ class (if model.gameMode == Custom then "mode-btn active" else "mode-btn"), onClick ToggleCustomPanel, title "输入自定义的 4 个数字" ] [ text "自定义" ]
             ]
         , if isTimeAttack then
             div []
@@ -2105,7 +2288,7 @@ view model =
             div [ class "hint-box" ] [ text model.hintText ]
           else
             text ""
-        , if not isTimeAttack && not isReview then
+        , if not isTimeAttack && not isReview && not isCustom then
             div [ class "difficulty-row" ]
                 [ button [ class (if model.difficulty == Easy then "diff-btn active" else "diff-btn"), onClick (ChangeDifficulty Easy) ] [ text "初级" ]
                 , button [ class (if model.difficulty == Normal then "diff-btn active" else "diff-btn"), onClick (ChangeDifficulty Normal) ] [ text "中级" ]
@@ -2141,6 +2324,8 @@ view model =
             , button [ class "btn btn-secondary", onClick ShareProblem ] [ text "分享" ]
             , if isTimeAttack && model.timeLeft <= 0 then
                 button [ class "btn btn-primary", onClick StartTimeAttack ] [ text "再来一局" ]
+              else if isCustom then
+                button [ class "btn btn-secondary", onClick NewGame ] [ text "自定义新题" ]
               else
                 button [ class "btn btn-secondary", onClick NewGame ] [ text "新局" ]
             ]
@@ -2265,7 +2450,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.13" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.14" ]
         ]
 
 

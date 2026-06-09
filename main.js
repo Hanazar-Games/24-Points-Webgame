@@ -5629,6 +5629,7 @@ var $author$project$Main$init = function (flags) {
 		cards: _List_Nil,
 		comboDisplay: $elm$core$Maybe$Nothing,
 		comboTimer: 0,
+		customInput: '',
 		dailyBestTime: 0,
 		dailyCompleted: false,
 		dailyDate: flags.today,
@@ -5653,6 +5654,7 @@ var $author$project$Main$init = function (flags) {
 		sharedCount: 0,
 		shieldActive: false,
 		showAllAnswers: false,
+		showCustomPanel: false,
 		showHint: false,
 		showSkippedProblems: false,
 		showSteps: false,
@@ -6122,6 +6124,7 @@ var $author$project$Main$subscriptions = function (model) {
 				$author$project$Main$receiveSFXSetting($author$project$Main$ReceiveSFXSetting)
 			]));
 };
+var $author$project$Main$Custom = {$: 'Custom'};
 var $author$project$Main$Daily = {$: 'Daily'};
 var $author$project$Main$DelayedNewCards = {$: 'DelayedNewCards'};
 var $author$project$Main$Error = {$: 'Error'};
@@ -7521,6 +7524,7 @@ var $author$project$Main$getStepHint = F2(
 		}
 	});
 var $author$project$Main$Success = {$: 'Success'};
+var $author$project$Main$ToggleCustomPanel = {$: 'ToggleCustomPanel'};
 var $author$project$Main$checkAchievements = function (model) {
 	var all = _List_fromArray(
 		[
@@ -7582,12 +7586,12 @@ var $author$project$Main$spawnParticles = _Platform_outgoingPort('spawnParticles
 var $author$project$Main$vibrate = _Platform_outgoingPort('vibrate', $elm$json$Json$Encode$int);
 var $author$project$Main$handleCorrect = function (model) {
 	var stepCount = function () {
-		var _v9 = $author$project$Main$parseExpr(
+		var _v11 = $author$project$Main$parseExpr(
 			$author$project$Main$tokenize(model.input));
-		if (_v9.$ === 'Just') {
-			var _v10 = _v9.a;
-			var expr = _v10.a;
-			var rest = _v10.b;
+		if (_v11.$ === 'Just') {
+			var _v12 = _v11.a;
+			var expr = _v12.a;
+			var rest = _v12.b;
 			return $elm$core$List$isEmpty(rest) ? $author$project$Main$countOps(expr) : 0;
 		} else {
 			return 0;
@@ -7830,7 +7834,7 @@ var $author$project$Main$handleCorrect = function (model) {
 								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
-		default:
+		case 'Review':
 			var newStreak = model.streak + 1;
 			var newSolved = model.solved + 1;
 			var newHistory = A2($author$project$Main$addToHistory, model.input, model.history);
@@ -7916,6 +7920,79 @@ var $author$project$Main$handleCorrect = function (model) {
 								$elm$browser$Browser$Dom$focus('expr-input'))
 							]),
 						sfx)));
+		default:
+			var newStreak = model.streak + 1;
+			var newSolved = model.solved + 1;
+			var newHistory = A2($author$project$Main$addToHistory, model.input, model.history);
+			var newBestStreak = A2($elm$core$Basics$max, newStreak, model.bestStreak);
+			var newAch = _Utils_ap(
+				$author$project$Main$checkAchievements(
+					_Utils_update(
+						model,
+						{solved: newSolved, stepsWithKeypad: newStepsWithKeypad, streak: newStreak})),
+				bubuAchievement);
+			var hasNewAch = !$elm$core$List$isEmpty(newAch);
+			var newModel = _Utils_update(
+				model,
+				{
+					achievementTimer: hasNewAch ? 5 : 0,
+					achievements: _Utils_ap(model.achievements, newAch),
+					bestStreak: newBestStreak,
+					comboDisplay: $elm$core$Maybe$Just(newStreak),
+					comboTimer: 2,
+					fastestSolve: newFastest,
+					hintLevel: 0,
+					history: newHistory,
+					input: '',
+					message: hasNewAch ? ('解锁成就！' + (model.input + (' = 24 ' + stepMsg))) : ('自定义挑战正确！' + (model.input + (' = 24 ' + stepMsg))),
+					messageType: $author$project$Main$Success,
+					newAchievements: newAch,
+					pendingNewCards: false,
+					shieldActive: newShield,
+					showHint: false,
+					solved: newSolved,
+					stepsWithKeypad: newStepsWithKeypad,
+					streak: newStreak
+				});
+			var sfx = hasNewAch ? _List_fromArray(
+				[
+					$author$project$Main$playSound('achievement'),
+					$author$project$Main$spawnParticles(50),
+					$author$project$Main$vibrate(200)
+				]) : ((newStreak >= 2) ? _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$playSound(
+					'streak:' + $elm$core$String$fromInt(newStreak)),
+					$author$project$Main$spawnParticles(40),
+					$author$project$Main$vibrate(80)
+				]) : _List_fromArray(
+				[
+					$author$project$Main$playSound('success'),
+					$author$project$Main$spawnParticles(30),
+					$author$project$Main$vibrate(80)
+				]));
+			return _Utils_Tuple2(
+				newModel,
+				$elm$core$Platform$Cmd$batch(
+					_Utils_ap(
+						_List_fromArray(
+							[
+								A2(
+								$elm$core$Task$perform,
+								function (_v9) {
+									return $author$project$Main$ToggleCustomPanel;
+								},
+								$elm$core$Process$sleep(800)),
+								$author$project$Main$saveCmd(newModel),
+								A2(
+								$elm$core$Task$attempt,
+								function (_v10) {
+									return $author$project$Main$NoOp;
+								},
+								$elm$browser$Browser$Dom$focus('expr-input'))
+							]),
+						sfx)));
 	}
 };
 var $author$project$Main$hasDivision = function (s) {
@@ -7995,6 +8072,26 @@ var $author$project$Main$parseAndValidate = F2(
 			}
 		}
 	});
+var $elm$core$String$trim = _String_trim;
+var $author$project$Main$parseCustomInput = function (s) {
+	if ($elm$core$String$isEmpty(s)) {
+		return $elm$core$Result$Err('请输入 4 个数字');
+	} else {
+		var nums = A2(
+			$elm$core$List$filterMap,
+			$elm$core$String$toInt,
+			A2(
+				$elm$core$List$map,
+				$elm$core$String$trim,
+				A2($elm$core$String$split, ',', s)));
+		return ($elm$core$List$length(nums) !== 4) ? $elm$core$Result$Err('需要恰好 4 个数字，用逗号分隔') : (A2(
+			$elm$core$List$any,
+			function (n) {
+				return (n < 1) || (n > 13);
+			},
+			nums) ? $elm$core$Result$Err('每个数字必须在 1-13 之间（A=1, J=11, Q=12, K=13）') : $elm$core$Result$Ok(nums));
+	}
+};
 var $elm$json$Json$Encode$null = _Json_encodeNull;
 var $author$project$Main$releaseWakeLock = _Platform_outgoingPort(
 	'releaseWakeLock',
@@ -8252,6 +8349,20 @@ var $author$project$Main$triggerImport = _Platform_outgoingPort(
 	'triggerImport',
 	function ($) {
 		return $elm$json$Json$Encode$null;
+	});
+var $author$project$Main$validateCustomCards = F2(
+	function (cache, nums) {
+		var _v0 = A2(
+			$author$project$Main$solve24Cached,
+			cache,
+			A2($elm$core$List$map, $elm$core$Basics$toFloat, nums));
+		var solutions = _v0.a;
+		var newCache = _v0.b;
+		return $elm$core$List$isEmpty(solutions) ? _Utils_Tuple2(
+			$elm$core$Result$Err('这 4 个数字无法算出 24，请换一组试试'),
+			newCache) : _Utils_Tuple2(
+			$elm$core$Result$Ok(nums),
+			newCache);
 	});
 var $author$project$Main$update = F2(
 	function (msg, model) {
@@ -8543,6 +8654,12 @@ var $author$project$Main$update = F2(
 										$author$project$Main$loadReviewProblem(model.skippedProblems),
 										$author$project$Main$playSound('click')
 									])));
+					case 'Custom':
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{hintLevel: 0, input: '', message: '请输入新的自定义题目', messageType: $author$project$Main$Info, shieldActive: false, showAllAnswers: false, showCustomPanel: true, showHint: false, streak: 0}),
+							$author$project$Main$playSound('click'));
 					default:
 						return _Utils_Tuple2(
 							_Utils_update(
@@ -8583,74 +8700,99 @@ var $author$project$Main$update = F2(
 						problem,
 						A2($elm$core$List$take, 19, model.skippedProblems));
 					var _v11 = model.gameMode;
-					if (_v11.$ === 'TimeAttack') {
-						var newTimeLeft = A2($elm$core$Basics$max, 0, model.timeLeft - 5);
-						var newModel = _Utils_update(
-							model,
-							{
-								message: hasShield ? ('护盾保护！跳过不中断连胜。答案是：' + A2(
-									$elm$core$Maybe$withDefault,
-									'',
-									$elm$core$List$head(model.allSolutions))) : ('跳过！扣5秒。答案是：' + A2(
-									$elm$core$Maybe$withDefault,
-									'',
-									$elm$core$List$head(model.allSolutions))),
-								messageType: $author$project$Main$Info,
-								pendingNewCards: true,
-								shieldActive: hasShield ? true : model.shieldActive,
-								showAllAnswers: true,
-								skipped: model.skipped + 1,
-								skippedProblems: newSkippedProblems,
-								streak: hasShield ? model.streak : 0,
-								timeLeft: newTimeLeft
-							});
-						return _Utils_Tuple2(
-							newModel,
-							$elm$core$Platform$Cmd$batch(
-								_List_fromArray(
-									[
-										A2(
-										$elm$core$Task$perform,
-										function (_v12) {
-											return $author$project$Main$DelayedNewCards;
-										},
-										$elm$core$Process$sleep(1500)),
-										$author$project$Main$saveCmd(newModel),
-										$author$project$Main$playSound('click')
-									])));
-					} else {
-						var newModel = _Utils_update(
-							model,
-							{
-								message: hasShield ? ('护盾保护！跳过不中断连胜。答案是：' + A2(
-									$elm$core$Maybe$withDefault,
-									'',
-									$elm$core$List$head(model.allSolutions))) : ('跳过！答案是：' + A2(
-									$elm$core$Maybe$withDefault,
-									'',
-									$elm$core$List$head(model.allSolutions))),
-								messageType: $author$project$Main$Info,
-								pendingNewCards: true,
-								shieldActive: hasShield ? true : model.shieldActive,
-								showAllAnswers: true,
-								skipped: model.skipped + 1,
-								skippedProblems: newSkippedProblems,
-								streak: hasShield ? model.streak : 0
-							});
-						return _Utils_Tuple2(
-							newModel,
-							$elm$core$Platform$Cmd$batch(
-								_List_fromArray(
-									[
-										A2(
-										$elm$core$Task$perform,
-										function (_v13) {
-											return $author$project$Main$DelayedNewCards;
-										},
-										$elm$core$Process$sleep(1500)),
-										$author$project$Main$saveCmd(newModel),
-										$author$project$Main$playSound('click')
-									])));
+					switch (_v11.$) {
+						case 'TimeAttack':
+							var newTimeLeft = A2($elm$core$Basics$max, 0, model.timeLeft - 5);
+							var newModel = _Utils_update(
+								model,
+								{
+									message: hasShield ? ('护盾保护！跳过不中断连胜。答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))) : ('跳过！扣5秒。答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))),
+									messageType: $author$project$Main$Info,
+									pendingNewCards: true,
+									shieldActive: hasShield ? true : model.shieldActive,
+									showAllAnswers: true,
+									skipped: model.skipped + 1,
+									skippedProblems: newSkippedProblems,
+									streak: hasShield ? model.streak : 0,
+									timeLeft: newTimeLeft
+								});
+							return _Utils_Tuple2(
+								newModel,
+								$elm$core$Platform$Cmd$batch(
+									_List_fromArray(
+										[
+											A2(
+											$elm$core$Task$perform,
+											function (_v12) {
+												return $author$project$Main$DelayedNewCards;
+											},
+											$elm$core$Process$sleep(1500)),
+											$author$project$Main$saveCmd(newModel),
+											$author$project$Main$playSound('click')
+										])));
+						case 'Custom':
+							var newModel = _Utils_update(
+								model,
+								{
+									message: hasShield ? ('护盾保护！跳过不中断连胜。答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))) : ('跳过！答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))),
+									messageType: $author$project$Main$Info,
+									shieldActive: hasShield ? true : model.shieldActive,
+									showAllAnswers: true,
+									streak: hasShield ? model.streak : 0
+								});
+							return _Utils_Tuple2(
+								newModel,
+								$elm$core$Platform$Cmd$batch(
+									_List_fromArray(
+										[
+											$author$project$Main$saveCmd(newModel),
+											$author$project$Main$playSound('click')
+										])));
+						default:
+							var newModel = _Utils_update(
+								model,
+								{
+									message: hasShield ? ('护盾保护！跳过不中断连胜。答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))) : ('跳过！答案是：' + A2(
+										$elm$core$Maybe$withDefault,
+										'',
+										$elm$core$List$head(model.allSolutions))),
+									messageType: $author$project$Main$Info,
+									pendingNewCards: true,
+									shieldActive: hasShield ? true : model.shieldActive,
+									showAllAnswers: true,
+									skipped: model.skipped + 1,
+									skippedProblems: newSkippedProblems,
+									streak: hasShield ? model.streak : 0
+								});
+							return _Utils_Tuple2(
+								newModel,
+								$elm$core$Platform$Cmd$batch(
+									_List_fromArray(
+										[
+											A2(
+											$elm$core$Task$perform,
+											function (_v13) {
+												return $author$project$Main$DelayedNewCards;
+											},
+											$elm$core$Process$sleep(1500)),
+											$author$project$Main$saveCmd(newModel),
+											$author$project$Main$playSound('click')
+										])));
 					}
 				}
 			case 'Tick':
@@ -8832,7 +8974,7 @@ var $author$project$Main$update = F2(
 										$author$project$Main$playSound('click'),
 										wasTimeAttack ? $author$project$Main$releaseWakeLock(_Utils_Tuple0) : $elm$core$Platform$Cmd$none
 									])));
-					default:
+					case 'Review':
 						if ($elm$core$List$isEmpty(model.skippedProblems)) {
 							var newModel = _Utils_update(
 								model,
@@ -8859,6 +9001,18 @@ var $author$project$Main$update = F2(
 											wasTimeAttack ? $author$project$Main$releaseWakeLock(_Utils_Tuple0) : $elm$core$Platform$Cmd$none
 										])));
 						}
+					default:
+						var newModel = _Utils_update(
+							model,
+							{gameMode: $author$project$Main$Custom, hintLevel: 0, input: '', message: '自定义挑战模式！输入你想要的 4 个数字', messageType: $author$project$Main$Info, newAchievements: _List_Nil, shieldActive: false, showAllAnswers: false, showCustomPanel: true, showHint: false, streak: 0});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										wasTimeAttack ? $author$project$Main$releaseWakeLock(_Utils_Tuple0) : $elm$core$Platform$Cmd$none,
+										$author$project$Main$playSound('click')
+									])));
 				}
 			case 'StartTimeAttack':
 				var newModel = _Utils_update(
@@ -8898,6 +9052,68 @@ var $author$project$Main$update = F2(
 									$author$project$Main$playSound('click')
 								])));
 				}
+			case 'ToggleCustomPanel':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							customInput: model.showCustomPanel ? '' : model.customInput,
+							showCustomPanel: !model.showCustomPanel
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'UpdateCustomInput':
+				var s = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{customInput: s}),
+					$elm$core$Platform$Cmd$none);
+			case 'StartCustomChallenge':
+				var _v17 = $author$project$Main$parseCustomInput(model.customInput);
+				if (_v17.$ === 'Err') {
+					var errMsg = _v17.a;
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{message: errMsg, messageType: $author$project$Main$Error}),
+						$author$project$Main$playSound('error'));
+				} else {
+					var nums = _v17.a;
+					var _v18 = A2($author$project$Main$validateCustomCards, model.solverCache, nums);
+					var validation = _v18.a;
+					var newCache = _v18.b;
+					if (validation.$ === 'Err') {
+						var errMsg = validation.a;
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{message: errMsg, messageType: $author$project$Main$Error, solverCache: newCache}),
+							$author$project$Main$playSound('error'));
+					} else {
+						var cards = $author$project$Main$valuesToCards(nums);
+						var newModel = _Utils_update(
+							model,
+							{cards: cards, gameMode: $author$project$Main$Custom, hintLevel: 0, input: '', inputHint: '', liveResult: '', message: '自定义挑战开始！用这 4 张牌算出 24', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: false, shieldActive: false, showAllAnswers: false, showCustomPanel: false, showHint: false, streak: 0, timer: 0});
+						return _Utils_Tuple2(
+							newModel,
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										A2(
+										$elm$core$Task$perform,
+										$author$project$Main$NewCards,
+										$elm$core$Task$succeed(cards)),
+										$author$project$Main$playSound('click'),
+										_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) ? $author$project$Main$releaseWakeLock(_Utils_Tuple0) : $elm$core$Platform$Cmd$none
+									])));
+					}
+				}
+			case 'CloseCustomPanel':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{customInput: '', showCustomPanel: false}),
+					$elm$core$Platform$Cmd$none);
 			case 'CardClick':
 				var val = msg.a;
 				if (model.pendingNewCards || (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0))) {
@@ -8944,7 +9160,7 @@ var $author$project$Main$update = F2(
 										$author$project$Main$playSound('key'),
 										A2(
 										$elm$core$Task$attempt,
-										function (_v17) {
+										function (_v20) {
 											return $author$project$Main$NoOp;
 										},
 										$elm$browser$Browser$Dom$focus('expr-input'))
@@ -9044,17 +9260,17 @@ var $author$project$Main$update = F2(
 							$author$project$Main$playSound('click'));
 					} else {
 						var steps = function () {
-							var _v18 = $elm$core$List$head(model.allSolutions);
-							if (_v18.$ === 'Nothing') {
+							var _v21 = $elm$core$List$head(model.allSolutions);
+							if (_v21.$ === 'Nothing') {
 								return _List_Nil;
 							} else {
-								var first = _v18.a;
-								var _v19 = $author$project$Main$parseExpr(
+								var first = _v21.a;
+								var _v22 = $author$project$Main$parseExpr(
 									$author$project$Main$tokenize(first));
-								if (_v19.$ === 'Just') {
-									var _v20 = _v19.a;
-									var expr = _v20.a;
-									var rest = _v20.b;
+								if (_v22.$ === 'Just') {
+									var _v23 = _v22.a;
+									var expr = _v23.a;
+									var rest = _v23.b;
 									return $elm$core$List$isEmpty(rest) ? $author$project$Main$stepByStepSolve(expr) : _List_Nil;
 								} else {
 									return _List_Nil;
@@ -9154,6 +9370,7 @@ var $author$project$Main$ChangeTheme = function (a) {
 	return {$: 'ChangeTheme', a: a};
 };
 var $author$project$Main$ClearHistory = {$: 'ClearHistory'};
+var $author$project$Main$CloseCustomPanel = {$: 'CloseCustomPanel'};
 var $author$project$Main$CopyAnswer = function (a) {
 	return {$: 'CopyAnswer', a: a};
 };
@@ -9172,11 +9389,15 @@ var $author$project$Main$ShowAllAnswers = {$: 'ShowAllAnswers'};
 var $author$project$Main$ShowHint = {$: 'ShowHint'};
 var $author$project$Main$ShowSteps = {$: 'ShowSteps'};
 var $author$project$Main$Skip = {$: 'Skip'};
+var $author$project$Main$StartCustomChallenge = {$: 'StartCustomChallenge'};
 var $author$project$Main$StartTimeAttack = {$: 'StartTimeAttack'};
 var $author$project$Main$SubmitAnswer = {$: 'SubmitAnswer'};
 var $author$project$Main$ToggleSFX = {$: 'ToggleSFX'};
 var $author$project$Main$ToggleSkippedProblems = {$: 'ToggleSkippedProblems'};
 var $author$project$Main$TriggerImport = {$: 'TriggerImport'};
+var $author$project$Main$UpdateCustomInput = function (a) {
+	return {$: 'UpdateCustomInput', a: a};
+};
 var $author$project$Main$UpdateInput = function (a) {
 	return {$: 'UpdateInput', a: a};
 };
@@ -9320,7 +9541,7 @@ var $author$project$Main$css = function (theme) {
 		_List_Nil,
 		_List_fromArray(
 			[
-				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }\n.daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }\n.daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }\n.daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }\n.daily-calendar { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }\n.daily-calendar-day { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; }\n.container.dark .daily-calendar-day { background: rgba(255,255,255,0.06); color: #8892b0; }\n.container.light .daily-calendar-day { background: rgba(0,0,0,0.04); color: #64748b; }\n.daily-calendar-day.completed { background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.2)) !important; color: #2ecc71 !important; }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n.keypad { display: flex; flex-direction: column; gap: 8px; align-items: center; margin: 12px 0; }\n.keypad-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.keypad-btn { min-width: 48px; height: 44px; border-radius: 10px; border: 1px solid; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: monospace; }\n.container.dark .keypad-btn { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.12); }\n.container.light .keypad-btn { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .keypad-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.container.light .keypad-btn:hover { background: rgba(0,0,0,0.08); transform: translateY(-2px); }\n.keypad-btn:active { transform: scale(0.92); }\n.keypad-num { min-width: 52px; font-size: 1.2em; }\n.keypad-op { min-width: 40px; }\n.keypad-del { color: #e94560 !important; }\n.keypad-clear { color: #ffd93d !important; }\n.keypad-submit { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; }\n.keypad-toggle { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 0.7em; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }\n.container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n\n.used-hint { text-align: center; font-size: 0.8em; margin: -4px 0 8px 0; font-weight: 600; }\n.container.dark .used-hint { color: #6bcb77; }\n.container.light .used-hint { color: #27ae60; }\n\n.skipped-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .skipped-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .skipped-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.skipped-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }\n.skipped-header h4 { margin: 0; color: #e94560; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.skipped-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }\n.skipped-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.9em; }\n.container.dark .skipped-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .skipped-item { background: rgba(0,0,0,0.05); color: #475569; }\n.skipped-ans { color: #e94560; font-size: 0.85em; }\n\n@keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }\n.pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }\n\n.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }\n.combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }\n@keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }\n\n.steps-panel { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .steps-panel { background: rgba(0,201,255,0.05); border: 1px solid rgba(0,201,255,0.15); }\n.container.light .steps-panel { background: rgba(0,201,255,0.03); border: 1px solid rgba(0,201,255,0.12); }\n.steps-title { font-weight: 700; color: #00c9ff; margin-bottom: 12px; font-size: 1em; }\n.steps-list { display: flex; flex-direction: column; gap: 8px; }\n.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 1em; }\n.container.dark .step-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .step-item { background: rgba(0,0,0,0.05); color: #475569; }\n.step-num { min-width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; }\n.step-arrow { color: #00c9ff; font-size: 1.2em; }\n.step-result { color: #e94560; font-weight: 700; }\n\n.ta-history { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .ta-history { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .ta-history { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.ta-history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }\n.container.dark .ta-history-title { color: #8892b0; }\n.container.light .ta-history-title { color: #64748b; }\n.ta-scores { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.ta-score { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 700; }\n.container.dark .ta-score { background: rgba(0,201,255,0.1); color: #00c9ff; }\n.container.light .ta-score { background: rgba(0,201,255,0.08); color: #0077ff; }\n.ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }\n\n.tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }\n.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }\n.container.dark .tutorial-box { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); color: #eee; }\n.container.light .tutorial-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #1a1a2e; }\n.tutorial-box h2 { margin: 0 0 12px 0; font-size: 1.5em; font-weight: 900; color: #e94560; }\n.tutorial-box p { margin: 8px 0; font-size: 0.95em; line-height: 1.6; }\n.container.dark .tutorial-box p { color: #8892b0; }\n.container.light .tutorial-box p { color: #64748b; }\n.tutorial-box .btn { margin-top: 16px; }\n\n.reduce-motion .particle { display: none; }\n.reduce-motion .card { animation: none; }\n.reduce-motion .msg-pulse { animation: none; }\n.reduce-motion .msg-shake { animation: none; }\n.reduce-motion .combo-popup { animation: none; opacity: 1; }\n.reduce-motion .achievement-toast { animation: none; }\n.reduce-motion .pop-animation { animation: none; }\n.reduce-motion .stat-fire { animation: none; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
+				$elm$html$Html$text('\nbody { font-family: \'Inter\', \'Segoe UI\', system-ui, sans-serif; margin: 0; min-height: 100vh; }\n.container { max-width: 900px; margin: 0 auto; padding: 16px; min-height: 100vh; }\n.container.dark { background: radial-gradient(ellipse at top, #1a1a3e 0%, #0d0d1a 50%, #050510 100%); color: #eee; }\n.container.light { background: radial-gradient(ellipse at top, #f5f5f7 0%, #e8e8ec 50%, #ddd 100%); color: #1a1a2e; }\n.container, .expr-input, .stat-box, .btn-secondary, .message, .all-answers, .history-panel, .rules, .achievements-panel, .hint-box, .answer-item, .diff-btn, .mode-btn { transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease; }\n\n.header { text-align: center; margin-bottom: 24px; position: relative; }\n.header h1 { font-size: 2.8em; margin: 0; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #e94560, #ff6b6b, #ffd93d); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(233,69,96,0.4)); }\n.container.light .header h1 { filter: drop-shadow(0 0 10px rgba(233,69,96,0.2)); }\n.header p { margin-top: 6px; font-size: 1em; font-weight: 400; }\n.container.dark .header p { color: #8892b0; }\n.container.light .header p { color: #64748b; }\n\n.stats { display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }\n.stat-box { border-radius: 14px; padding: 10px 16px; text-align: center; backdrop-filter: blur(20px); border: 1px solid; transition: all 0.3s; }\n.container.dark .stat-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }\n.container.light .stat-box { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); }\n.stat-box:hover { transform: translateY(-2px); }\n.container.dark .stat-box:hover { background: rgba(255,255,255,0.08); }\n.container.light .stat-box:hover { background: rgba(0,0,0,0.08); }\n.stat-label { font-size: 0.65em; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 600; }\n.container.dark .stat-label { color: #8892b0; }\n.container.light .stat-label { color: #64748b; }\n.stat-value { font-size: 1.3em; font-weight: 700; color: #e94560; margin-top: 2px; }\n.stat-fire { font-size: 1.1em; animation: firePulse 1s ease infinite; }\n@keyframes firePulse { 0%,100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.2); filter: brightness(1.3); } }\n\n.cards-area { display: flex; justify-content: center; gap: 12px; margin: 24px 0; flex-wrap: wrap; perspective: 800px; }\n.card {\n  width: 90px; height: 126px; background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 40%, #e8e8e8 100%);\n  border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);\n  position: relative; transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);\n  cursor: pointer; overflow: hidden; border: 1px solid rgba(0,0,0,0.08);\n}\n.card::before { content: \'\'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.015) 8px, rgba(0,0,0,0.015) 16px); pointer-events: none; }\n.card:hover { transform: translateY(-10px) rotateX(8deg) rotateY(-5deg) scale(1.08); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }\n.card:active { transform: scale(0.95); }\n@keyframes dealIn { 0% { opacity: 0; transform: translateY(-60px) rotateZ(-10deg) scale(0.7); } 70% { transform: translateY(5px) rotateZ(2deg) scale(1.02); } 100% { opacity: 1; transform: translateY(0) rotateZ(0) scale(1); } }\n.card { animation: dealIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards; }\n.card:nth-child(1) { animation-delay: 0.08s; }\n.card:nth-child(2) { animation-delay: 0.16s; }\n.card:nth-child(3) { animation-delay: 0.24s; }\n.card:nth-child(4) { animation-delay: 0.32s; }\n.card-corner-top { position: absolute; top: 6px; left: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; }\n.card-corner-bottom { position: absolute; bottom: 6px; right: 8px; display: flex; flex-direction: column; align-items: center; line-height: 1; transform: rotate(180deg); }\n.card-corner-val { font-size: 1.1em; font-weight: 800; }\n.card-corner-suit { font-size: 0.85em; }\n.card-center-suit { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2.8em; opacity: 0.15; }\n\n.card.streak-glow { box-shadow: 0 4px 20px rgba(233,69,96,0.3), 0 0 30px rgba(233,69,96,0.15); }\n.card.streak-fire { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); animation: fireGlow 1.5s ease infinite; }\n.card.streak-god { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); animation: godGlow 1s ease infinite; }\n@keyframes fireGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,107,59,0.4), 0 0 40px rgba(255,107,59,0.2); } 50% { box-shadow: 0 4px 20px rgba(255,107,59,0.6), 0 0 60px rgba(255,107,59,0.35); } }\n@keyframes godGlow { 0%,100% { box-shadow: 0 4px 20px rgba(255,215,0,0.5), 0 0 60px rgba(255,215,0,0.3); } 50% { box-shadow: 0 4px 20px rgba(255,215,0,0.7), 0 0 80px rgba(255,215,0,0.5); } }\n\n.input-area { display: flex; gap: 10px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }\n.expr-input { flex: 1; min-width: 220px; max-width: 380px; padding: 14px 20px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.15em; outline: none; transition: all 0.3s; font-family: monospace; }\n.container.dark .expr-input { background: rgba(0,0,0,0.25); color: #fff; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3); }\n.container.light .expr-input { background: rgba(0,0,0,0.05); color: #1a1a2e; box-shadow: inset 0 2px 8px rgba(0,0,0,0.05); }\n.expr-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n.container.dark .expr-input::placeholder { color: #555; }\n.container.light .expr-input::placeholder { color: #999; }\n\n.btn { padding: 12px 20px; border: none; border-radius: 10px; font-size: 0.9em; cursor: pointer; transition: all 0.15s; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; position: relative; overflow: hidden; }\n.btn::after { content: \'\'; position: absolute; top: 50%; left: 50%; width: 0; height: 0; background: rgba(255,255,255,0.2); border-radius: 50%; transform: translate(-50%, -50%); transition: width 0.4s, height 0.4s; }\n.btn:active::after { width: 200px; height: 200px; }\n.btn:active { transform: scale(0.92); }\n.btn-primary { background: linear-gradient(135deg, #e94560, #ff2e63); color: white; box-shadow: 0 4px 20px rgba(233,69,96,0.4); }\n.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(233,69,96,0.5); }\n.btn-success { background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; box-shadow: 0 4px 20px rgba(0,201,255,0.3); }\n.btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,201,255,0.4); }\n.btn-secondary { border: 1px solid; }\n.container.dark .btn-secondary { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.1); }\n.container.light .btn-secondary { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .btn-secondary:hover { background: rgba(255,255,255,0.12); }\n.container.light .btn-secondary:hover { background: rgba(0,0,0,0.08); }\n\n.message { text-align: center; padding: 14px 20px; border-radius: 12px; margin: 12px 0; font-weight: 600; min-height: 24px; font-size: 1.05em; backdrop-filter: blur(10px); }\n.container.dark .msg-success { background: rgba(46, 204, 113, 0.12); border: 1px solid rgba(46, 204, 113, 0.25); color: #2ecc71; }\n.container.light .msg-success { background: rgba(46, 204, 113, 0.08); border: 1px solid rgba(46, 204, 113, 0.2); color: #27ae60; }\n.container.dark .msg-error { background: rgba(231, 76, 60, 0.12); border: 1px solid rgba(231, 76, 60, 0.25); color: #e74c3c; }\n.container.light .msg-error { background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); color: #c0392b; }\n.container.dark .msg-info { background: rgba(52, 152, 219, 0.12); border: 1px solid rgba(52, 152, 219, 0.25); color: #3498db; }\n.container.light .msg-info { background: rgba(52, 152, 219, 0.08); border: 1px solid rgba(52, 152, 219, 0.2); color: #2980b9; }\n@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }\n@keyframes shake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-10px) rotate(-1deg); } 30% { transform: translateX(10px) rotate(1deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-3px); } }\n.msg-pulse { animation: pulse 0.6s ease; }\n.msg-shake { animation: shake 0.6s ease; }\n\n.hint-box { border: 1px dashed; border-radius: 12px; padding: 14px; margin: 12px 0; text-align: center; font-family: monospace; font-size: 1.05em; }\n.container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }\n.container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }\n\n.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10000; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }\n.achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }\n.achievement-toast .ach-name { font-size: 1.2em; }\n@keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }\n\n.achievements-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .achievements-panel { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .achievements-panel { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.achievements-panel h4 { margin: 0 0 10px 0; color: #ffd700; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.ach-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin: 3px; border: 1px solid; }\n.container.dark .ach-badge { background: rgba(255,255,255,0.08); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .ach-badge { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.08); }\n.ach-badge.unlocked { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)); color: #ffd700; border-color: rgba(255,215,0,0.3); }\n\n.daily-streak { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .daily-streak { background: rgba(255,215,0,0.05); border: 1px solid rgba(255,215,0,0.15); }\n.container.light .daily-streak { background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.12); }\n.daily-streak-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #ffd700; margin-bottom: 4px; }\n.daily-streak-days { display: flex; align-items: baseline; justify-content: center; gap: 4px; }\n.daily-streak-num { font-size: 2em; font-weight: 900; color: #e94560; }\n.daily-streak-unit { font-size: 0.9em; color: #8892b0; font-weight: 600; }\n.daily-calendar { display: flex; gap: 6px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }\n.daily-calendar-day { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75em; font-weight: 700; }\n.container.dark .daily-calendar-day { background: rgba(255,255,255,0.06); color: #8892b0; }\n.container.light .daily-calendar-day { background: rgba(0,0,0,0.04); color: #64748b; }\n.daily-calendar-day.completed { background: linear-gradient(135deg, rgba(46,204,113,0.2), rgba(39,174,96,0.2)) !important; color: #2ecc71 !important; }\n\n.rules { border-radius: 14px; padding: 20px; margin-top: 24px; }\n.container.dark .rules { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .rules { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.rules h3 { margin-top: 0; color: #e94560; font-size: 1.1em; }\n.container.dark .rules ul { padding-left: 20px; color: #8892b0; line-height: 1.8; font-size: 0.95em; }\n.container.light .rules ul { padding-left: 20px; color: #64748b; line-height: 1.8; font-size: 0.95em; }\n.rules code { background: rgba(233,69,96,0.12); padding: 2px 8px; border-radius: 6px; color: #ff6b6b; font-family: monospace; font-size: 0.9em; }\n\n.buttons-row { display: flex; gap: 8px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }\n\n.all-answers { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .all-answers { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); }\n.container.light .all-answers { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.all-answers-title { font-weight: 700; color: #e94560; margin-bottom: 10px; font-size: 1em; }\n.answers-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }\n.answer-item { padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 1em; border-left: 3px solid #e94560; transition: all 0.2s; cursor: pointer; }\n.container.dark .answer-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .answer-item { background: rgba(0,0,0,0.05); color: #475569; }\n.container.dark .answer-item:hover { background: rgba(0,0,0,0.3); }\n.container.light .answer-item:hover { background: rgba(0,0,0,0.1); }\n.answer-item:hover { transform: translateX(4px); }\n\n.sfx-toggle { position: absolute; top: 0; right: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .sfx-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .sfx-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.sfx-toggle:hover { transform: scale(1.05); }\n.container.dark .sfx-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .sfx-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.theme-toggle { position: absolute; top: 0; left: 0; border: 1px solid; padding: 6px 12px; border-radius: 20px; font-size: 0.75em; cursor: pointer; transition: all 0.2s; }\n.container.dark .theme-toggle { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #ccd6f6; }\n.container.light .theme-toggle { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.1); color: #475569; }\n.theme-toggle:hover { transform: scale(1.05); }\n.container.dark .theme-toggle:hover { background: rgba(255,255,255,0.15); }\n.container.light .theme-toggle:hover { background: rgba(0,0,0,0.1); }\n\n.difficulty-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }\n.diff-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid; font-size: 0.75em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .diff-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .diff-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .diff-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .diff-btn:hover { background: rgba(0,0,0,0.08); }\n.diff-btn.active { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }\n\n.mode-row { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }\n.mode-btn { padding: 8px 18px; border-radius: 20px; border: 1px solid; font-size: 0.8em; font-weight: 700; cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }\n.container.dark .mode-btn { background: rgba(255,255,255,0.04); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .mode-btn { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .mode-btn:hover { background: rgba(255,255,255,0.1); }\n.container.light .mode-btn:hover { background: rgba(0,0,0,0.08); }\n.mode-btn.active { background: linear-gradient(135deg, #00c9ff, #0077ff) !important; color: white !important; border-color: transparent !important; box-shadow: 0 4px 15px rgba(0,201,255,0.3); }\n\n.live-result { text-align: center; font-family: monospace; font-size: 1.1em; min-height: 24px; margin: -6px 0 6px 0; transition: all 0.3s; }\n.container.dark .live-result { color: #8892b0; }\n.container.light .live-result { color: #64748b; }\n.live-result.valid { color: #2ecc71; font-weight: 700; }\n\n.history-panel { border-radius: 14px; padding: 14px; margin: 12px 0; }\n.container.dark .history-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .history-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }\n.history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }\n.container.dark .history-title { color: #8892b0; }\n.container.light .history-title { color: #64748b; }\n.history-clear { background: none; border: none; font-size: 0.75em; cursor: pointer; padding: 2px 8px; border-radius: 6px; transition: all 0.2s; }\n.container.dark .history-clear { color: #e94560; }\n.container.light .history-clear { color: #e94560; }\n.container.dark .history-clear:hover { background: rgba(233,69,96,0.15); }\n.container.light .history-clear:hover { background: rgba(233,69,96,0.1); }\n.history-list { display: flex; flex-wrap: wrap; gap: 6px; }\n.history-item { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85em; border: 1px solid; }\n.container.dark .history-item { background: rgba(0,0,0,0.2); color: #8892b0; border-color: rgba(255,255,255,0.05); }\n.container.light .history-item { background: rgba(0,0,0,0.05); color: #64748b; border-color: rgba(0,0,0,0.05); }\n\n.time-attack-bar { width: 100%; height: 6px; border-radius: 3px; margin: 8px 0; overflow: hidden; }\n.container.dark .time-attack-bar { background: rgba(255,255,255,0.1); }\n.container.light .time-attack-bar { background: rgba(0,0,0,0.1); }\n.time-attack-fill { height: 100%; border-radius: 3px; transition: width 1s linear; }\n.time-attack-fill.ok { background: linear-gradient(90deg, #00c9ff, #0077ff); }\n.time-attack-fill.warn { background: linear-gradient(90deg, #ffd93d, #ff6b6b); }\n.time-attack-fill.danger { background: linear-gradient(90deg, #e94560, #ff2e63); }\n\n.daily-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: 700; margin-left: 8px; }\n.container.dark .daily-badge { background: rgba(255,215,0,0.15); color: #ffd700; border: 1px solid rgba(255,215,0,0.3); }\n.container.light .daily-badge { background: rgba(255,215,0,0.12); color: #d4a000; border: 1px solid rgba(255,215,0,0.25); }\n\n.footer { text-align: center; margin-top: 24px; font-size: 0.8em; padding-bottom: 20px; }\n.container.dark .footer { color: #555; }\n.container.light .footer { color: #999; }\n\n.keypad { display: flex; flex-direction: column; gap: 8px; align-items: center; margin: 12px 0; }\n.keypad-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.keypad-btn { min-width: 48px; height: 44px; border-radius: 10px; border: 1px solid; font-size: 1.1em; font-weight: 700; cursor: pointer; transition: all 0.15s; font-family: monospace; }\n.container.dark .keypad-btn { background: rgba(255,255,255,0.06); color: #ccd6f6; border-color: rgba(255,255,255,0.12); }\n.container.light .keypad-btn { background: rgba(0,0,0,0.04); color: #475569; border-color: rgba(0,0,0,0.1); }\n.container.dark .keypad-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }\n.container.light .keypad-btn:hover { background: rgba(0,0,0,0.08); transform: translateY(-2px); }\n.keypad-btn:active { transform: scale(0.92); }\n.keypad-num { min-width: 52px; font-size: 1.2em; }\n.keypad-op { min-width: 40px; }\n.keypad-del { color: #e94560 !important; }\n.keypad-clear { color: #ffd93d !important; }\n.keypad-submit { background: linear-gradient(135deg, #e94560, #ff2e63) !important; color: white !important; border-color: transparent !important; }\n.keypad-toggle { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 0.7em; font-weight: 700; cursor: pointer; transition: all 0.2s; margin-bottom: 4px; }\n.container.dark .keypad-toggle { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .keypad-toggle { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n\n.used-hint { text-align: center; font-size: 0.8em; margin: -4px 0 8px 0; font-weight: 600; }\n.container.dark .used-hint { color: #6bcb77; }\n.container.light .used-hint { color: #27ae60; }\n\n.skipped-panel { border-radius: 14px; padding: 16px; margin: 12px 0; }\n.container.dark .skipped-panel { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .skipped-panel { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.skipped-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; }\n.skipped-header h4 { margin: 0; color: #e94560; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }\n.skipped-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }\n.skipped-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-radius: 8px; font-family: monospace; font-size: 0.9em; }\n.container.dark .skipped-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .skipped-item { background: rgba(0,0,0,0.05); color: #475569; }\n.skipped-ans { color: #e94560; font-size: 0.85em; }\n\n@keyframes popUp { 0% { transform: scale(0.5); opacity: 0; } 50% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }\n.pop-animation { animation: popUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }\n\n.combo-popup { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: linear-gradient(135deg, #e94560, #ff2e63); color: white; padding: 20px 40px; border-radius: 20px; font-size: 2em; font-weight: 900; z-index: 10001; box-shadow: 0 20px 60px rgba(233,69,96,0.5); animation: comboPop 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; text-align: center; }\n.combo-shield { font-size: 0.5em; margin-top: 8px; color: #ffd700; font-weight: 700; }\n@keyframes comboPop { 0% { transform: translate(-50%, -50%) scale(0); opacity: 0; } 20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } }\n\n.steps-panel { border-radius: 14px; padding: 18px; margin: 12px 0; }\n.container.dark .steps-panel { background: rgba(0,201,255,0.05); border: 1px solid rgba(0,201,255,0.15); }\n.container.light .steps-panel { background: rgba(0,201,255,0.03); border: 1px solid rgba(0,201,255,0.12); }\n.steps-title { font-weight: 700; color: #00c9ff; margin-bottom: 12px; font-size: 1em; }\n.steps-list { display: flex; flex-direction: column; gap: 8px; }\n.step-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-family: monospace; font-size: 1em; }\n.container.dark .step-item { background: rgba(0,0,0,0.2); color: #ccd6f6; }\n.container.light .step-item { background: rgba(0,0,0,0.05); color: #475569; }\n.step-num { min-width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #00c9ff, #0077ff); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8em; font-weight: 700; }\n.step-arrow { color: #00c9ff; font-size: 1.2em; }\n.step-result { color: #e94560; font-weight: 700; }\n\n.ta-history { border-radius: 14px; padding: 14px; margin: 12px 0; text-align: center; }\n.container.dark .ta-history { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }\n.container.light .ta-history { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); }\n.ta-history-title { font-size: 0.8em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }\n.container.dark .ta-history-title { color: #8892b0; }\n.container.light .ta-history-title { color: #64748b; }\n.ta-scores { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }\n.ta-score { padding: 4px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 700; }\n.container.dark .ta-score { background: rgba(0,201,255,0.1); color: #00c9ff; }\n.container.light .ta-score { background: rgba(0,201,255,0.08); color: #0077ff; }\n.ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }\n\n.tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }\n.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }\n.container.dark .tutorial-box { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); color: #eee; }\n.container.light .tutorial-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #1a1a2e; }\n.tutorial-box h2 { margin: 0 0 12px 0; font-size: 1.5em; font-weight: 900; color: #e94560; }\n.tutorial-box p { margin: 8px 0; font-size: 0.95em; line-height: 1.6; }\n.container.dark .tutorial-box p { color: #8892b0; }\n.container.light .tutorial-box p { color: #64748b; }\n.tutorial-box .btn { margin-top: 16px; }\n\n.custom-input { width: 100%; padding: 12px 16px; border: 2px solid rgba(233,69,96,0.25); border-radius: 12px; font-size: 1.1em; font-family: monospace; text-align: center; margin: 12px 0; box-sizing: border-box; outline: none; transition: all 0.3s; }\n.container.dark .custom-input { background: rgba(0,0,0,0.25); color: #fff; }\n.container.light .custom-input { background: rgba(0,0,0,0.05); color: #1a1a2e; }\n.custom-input:focus { border-color: #e94560; box-shadow: 0 0 20px rgba(233,69,96,0.2); }\n\n.custom-examples { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 8px 0 16px 0; }\n.custom-example { padding: 4px 10px; border-radius: 20px; font-size: 0.75em; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid; }\n.container.dark .custom-example { background: rgba(255,255,255,0.06); color: #8892b0; border-color: rgba(255,255,255,0.1); }\n.container.light .custom-example { background: rgba(0,0,0,0.04); color: #64748b; border-color: rgba(0,0,0,0.1); }\n.container.dark .custom-example:hover { background: rgba(233,69,96,0.2); color: #fff; border-color: rgba(233,69,96,0.4); }\n.container.light .custom-example:hover { background: rgba(233,69,96,0.1); color: #1a1a2e; border-color: rgba(233,69,96,0.3); }\n\n.reduce-motion .particle { display: none; }\n.reduce-motion .card { animation: none; }\n.reduce-motion .msg-pulse { animation: none; }\n.reduce-motion .msg-shake { animation: none; }\n.reduce-motion .combo-popup { animation: none; opacity: 1; }\n.reduce-motion .achievement-toast { animation: none; }\n.reduce-motion .pop-animation { animation: none; }\n.reduce-motion .stat-fire { animation: none; }\n\n@media (max-width: 600px) {\n    .header h1 { font-size: 2em; }\n    .header { position: relative; }\n    .sfx-toggle, .theme-toggle { position: relative; top: auto; right: auto; left: auto; margin-top: 8px; display: inline-block; }\n    .card { width: 72px; height: 100px; }\n    .card-center-suit { font-size: 2em; }\n    .btn { padding: 10px 14px; font-size: 0.8em; }\n    .stats { gap: 6px; }\n    .stat-box { padding: 8px 10px; }\n}\n')
 			]));
 };
 var $author$project$Main$BackspaceInput = {$: 'BackspaceInput'};
@@ -9764,6 +9985,7 @@ var $author$project$Main$view = function (model) {
 	var isTimeAttack = _Utils_eq(model.gameMode, $author$project$Main$TimeAttack);
 	var isReview = _Utils_eq(model.gameMode, $author$project$Main$Review);
 	var isDaily = _Utils_eq(model.gameMode, $author$project$Main$Daily);
+	var isCustom = _Utils_eq(model.gameMode, $author$project$Main$Custom);
 	return A2(
 		$elm$html$Html$div,
 		_List_fromArray(
@@ -9843,6 +10065,143 @@ var $author$project$Main$view = function (model) {
 								_List_fromArray(
 									[
 										$elm$html$Html$text('开始挑战')
+									]))
+							]))
+					])) : $elm$html$Html$text(''),
+				model.showCustomPanel ? A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('tutorial-overlay'),
+						$elm$html$Html$Events$onClick($author$project$Main$CloseCustomPanel)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('tutorial-box'),
+								A2(
+								$elm$html$Html$Events$stopPropagationOn,
+								'click',
+								$elm$json$Json$Decode$succeed(
+									_Utils_Tuple2($author$project$Main$NoOp, true)))
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$h2,
+								_List_Nil,
+								_List_fromArray(
+									[
+										$elm$html$Html$text('🎯 自定义挑战')
+									])),
+								A2(
+								$elm$html$Html$p,
+								_List_Nil,
+								_List_fromArray(
+									[
+										$elm$html$Html$text('输入 4 个 1-13 的数字，用逗号分隔')
+									])),
+								A2(
+								$elm$html$Html$input,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('custom-input'),
+										$elm$html$Html$Attributes$type_('text'),
+										$elm$html$Html$Attributes$value(model.customInput),
+										$elm$html$Html$Attributes$placeholder('例如：3,3,8,8'),
+										$elm$html$Html$Events$onInput($author$project$Main$UpdateCustomInput)
+									]),
+								_List_Nil),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('custom-examples')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('custom-example'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$UpdateCustomInput('3,3,8,8'))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('3,3,8,8')
+											])),
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('custom-example'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$UpdateCustomInput('4,4,10,10'))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('4,4,10,10')
+											])),
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('custom-example'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$UpdateCustomInput('1,5,5,5'))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('1,5,5,5')
+											])),
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('custom-example'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$UpdateCustomInput('1,3,4,6'))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('1,3,4,6')
+											]))
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('buttons-row')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('btn btn-primary'),
+												$elm$html$Html$Events$onClick($author$project$Main$StartCustomChallenge)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('开始挑战')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$class('btn btn-secondary'),
+												$elm$html$Html$Events$onClick($author$project$Main$CloseCustomPanel)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('取消')
+											]))
 									]))
 							]))
 					])) : $elm$html$Html$text(''),
@@ -9981,6 +10340,19 @@ var $author$project$Main$view = function (model) {
 								$elm$html$Html$text(
 								'错题复习' + ($elm$core$List$isEmpty(model.skippedProblems) ? '' : (' (' + ($elm$core$String$fromInt(
 									$elm$core$List$length(model.skippedProblems)) + ')'))))
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class(
+								_Utils_eq(model.gameMode, $author$project$Main$Custom) ? 'mode-btn active' : 'mode-btn'),
+								$elm$html$Html$Events$onClick($author$project$Main$ToggleCustomPanel),
+								$elm$html$Html$Attributes$title('输入自定义的 4 个数字')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('自定义')
 							]))
 					])),
 				isTimeAttack ? A2(
@@ -10304,7 +10676,7 @@ var $author$project$Main$view = function (model) {
 					[
 						$elm$html$Html$text(model.hintText)
 					])) : $elm$html$Html$text(''),
-				((!isTimeAttack) && (!isReview)) ? A2(
+				((!isTimeAttack) && ((!isReview) && (!isCustom))) ? A2(
 				$elm$html$Html$div,
 				_List_fromArray(
 					[
@@ -10484,6 +10856,16 @@ var $author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								$elm$html$Html$text('再来一局')
+							])) : (isCustom ? A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('btn btn-secondary'),
+								$elm$html$Html$Events$onClick($author$project$Main$NewGame)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('自定义新题')
 							])) : A2(
 						$elm$html$Html$button,
 						_List_fromArray(
@@ -10494,7 +10876,7 @@ var $author$project$Main$view = function (model) {
 						_List_fromArray(
 							[
 								$elm$html$Html$text('新局')
-							]))
+							])))
 					])),
 				(!isTimeAttack) ? $author$project$Main$viewKeypad(model) : $elm$html$Html$text(''),
 				(!$elm$core$List$isEmpty(model.history)) ? A2(
@@ -11136,7 +11518,7 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.13')
+						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.14')
 					]))
 			]));
 };
