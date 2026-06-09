@@ -1,6 +1,6 @@
-# 🃏 24点挑战 v0.3.2 - 扑克牌益智游戏
+# 🃏 24点挑战 v0.4.13 - 扑克牌益智游戏
 
-一个用 **Elm** 语言构建的纯函数式 24点 Web 游戏，零运行时错误，直接部署在 GitHub Pages。
+一个用 **Elm** 语言构建的纯函数式 24点 Web 游戏，零运行时错误，直接部署在 GitHub Pages，支持 PWA 离线安装。
 
 ## 在线游玩
 
@@ -17,31 +17,44 @@
 
 - **Elm 0.19.1** — 小众纯函数式编程语言，编译到 JavaScript
 - 自带 24点求解器算法（回溯 + 表达式树解析）
-- 单文件 `index.html`，直接部署 GitHub Pages
+- PWA 支持（Service Worker 离线缓存、Manifest、安装提示）
+- 直接部署 GitHub Pages
 
 ## 本地运行
 
 ```bash
-# 安装 Elm
-npm install -g elm
+# 安装依赖
+npm install
 
-# 编译（已生成 index.html，可直接打开）
-elm make src/Main.elm --output=index.html
+# 编译 Elm 到 main.js
+npx elm make src/Main.elm --output=main.js
 
-# 或用 elm reactor
-elm reactor
+# 然后直接用浏览器打开 index.html
+# 建议通过本地服务器打开，以支持 Service Worker 和 PWA 功能
+npx serve .
+
+# 或用 elm reactor 进行开发
+npx elm reactor
 ```
 
 ## 项目结构
 
 ```
 .
-├── index.html      # 编译后的完整游戏（GitHub Pages 入口）
+├── index.html           # 入口页面（加载 main.js 与 PWA 资源）
+├── main.js              # Elm 编译后的 JavaScript
 ├── src/
-│   └── Main.elm    # 全部 Elm 源代码
-├── elm.json        # Elm 项目配置
+│   └── Main.elm         # 全部 Elm 源代码
+├── manifest.json        # PWA 应用清单
+├── sw.js                # Service Worker 离线缓存
+├── elm.json             # Elm 项目配置
+├── CHANGELOG.md         # 版本公告与历史记录
 └── README.md
 ```
+
+## 版本公告
+
+📢 最新版本 **v0.4.13** 的详细更新内容请查看 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 经典例题
 

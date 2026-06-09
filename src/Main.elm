@@ -3,7 +3,7 @@ port module Main exposing (main)
 import Browser
 import Browser.Dom as Dom
 import Html exposing (Html, div, text, button, input, h1, h2, h3, h4, p, span, br, node, ul, li, code)
-import Html.Attributes exposing (class, value, style, placeholder, type_, id, title)
+import Html.Attributes exposing (class, value, style, placeholder, type_, id, title, disabled)
 import Html.Events exposing (onClick, onInput, on)
 import Json.Decode as D
 import Json.Encode as E
@@ -711,10 +711,10 @@ init flags =
         Just values ->
             let cards = List.indexedMap createCard values
             in ( { baseModel | message = "好友分享的题目！来挑战吧！", messageType = Info }
-               , Cmd.batch [ Task.succeed cards |> Task.perform NewCards, loadFromStorage () ]
+               , Task.succeed cards |> Task.perform NewCards
                )
         Nothing ->
-            ( baseModel, Cmd.batch [ generateCards Normal, loadFromStorage () ] )
+            ( baseModel, generateCards Normal )
 
 
 -- ============ STORAGE ============
@@ -997,6 +997,8 @@ update msg model =
                     , pendingNewCards = False
                     , showAllAnswers = False
                     , timeAttackTotalQuestions = if model.gameMode == TimeAttack then model.timeAttackTotalQuestions + 1 else model.timeAttackTotalQuestions
+                    , inputHint = ""
+                    , liveResult = ""
                   }
                 , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), hashCmd ]
                 )
@@ -1009,6 +1011,11 @@ update msg model =
             in ( { model | input = s, liveResult = live, inputHint = combinedHint }, Cmd.none )
 
         SubmitAnswer ->
+            if model.pendingNewCards then
+                ( model, Cmd.none )
+            else if model.gameMode == TimeAttack && model.timeLeft <= 0 then
+                ( model, Cmd.none )
+            else
             let cardValues = List.map (\c -> toFloat c.value) model.cards
                 newAttempts = model.totalAttempts + 1
             in case parseAndValidate model.input cardValues of
@@ -1028,40 +1035,48 @@ update msg model =
                             handleCorrect { model | totalAttempts = newAttempts }
                     else
                         let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
-                            errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
+                            errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, shieldActive = False, history = newHistory, totalAttempts = newAttempts }
                         in ( errModel, playSound "error" )
                 Err errMsg ->
                     let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
-                        newModel = { model | message = errMsg, messageType = Error, streak = 0, history = newHistory, totalAttempts = newAttempts }
+                        newModel = { model | message = errMsg, messageType = Error, streak = 0, shieldActive = False, history = newHistory, totalAttempts = newAttempts }
                     in ( newModel, Cmd.batch [ saveCmd newModel, playSound "error", vibrate 150 ] )
 
         ShowHint ->
-            case model.allSolutions of
-                [] ->
-                    ( { model | message = "这道题无解！点击「跳过」换一组。", messageType = Info }, playSound "click" )
-                first :: _ ->
-                    let newLevel = min 3 (model.hintLevel + 1)
-                        hint = getStepHint newLevel first
-                        steps = case parseExpr (tokenize first) of
-                            Just (expr, rest) ->
-                                if List.isEmpty rest then stepByStepSolve expr else []
-                            Nothing -> []
-                    in
-                    ( { model | showHint = True, hintLevel = newLevel, hintText = hint, stepByStep = steps, message = "提示已显示（" ++ String.fromInt newLevel ++ "/3）", messageType = Info }, playSound "click" )
+            if model.pendingNewCards then
+                ( model, Cmd.none )
+            else
+                case model.allSolutions of
+                    [] ->
+                        ( { model | message = "这道题无解！点击「跳过」换一组。", messageType = Info }, playSound "click" )
+                    first :: _ ->
+                        let newLevel = min 3 (model.hintLevel + 1)
+                            hint = getStepHint newLevel first
+                            steps = case parseExpr (tokenize first) of
+                                Just (expr, rest) ->
+                                    if List.isEmpty rest then stepByStepSolve expr else []
+                                Nothing -> []
+                        in
+                        ( { model | showHint = True, hintLevel = newLevel, hintText = hint, stepByStep = steps, message = "提示已显示（" ++ String.fromInt newLevel ++ "/3）", messageType = Info }, playSound "click" )
 
         ShowAllAnswers ->
-            ( { model | showAllAnswers = True, message = "显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, playSound "click" )
+            if model.pendingNewCards then
+                ( model, Cmd.none )
+            else if List.isEmpty model.allSolutions then
+                ( { model | showAllAnswers = True, message = "这道题没有解法，请跳过换一组", messageType = Info }, playSound "click" )
+            else
+                ( { model | showAllAnswers = True, message = "显示全部 " ++ String.fromInt (List.length model.allSolutions) ++ " 个解法", messageType = Info }, playSound "click" )
 
         NewGame ->
             case model.gameMode of
                 TimeAttack ->
-                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Review ->
-                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
+                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
                     in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
                 _ ->
-                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
+                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
                     , Cmd.batch [ generateCards model.difficulty, playSound "click" ]
                     )
 
@@ -1192,9 +1207,12 @@ update msg model =
             )
 
         ChangeDifficulty diff ->
-            ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True }
-            , Cmd.batch [ generateCards diff, playSound "click" ]
-            )
+            if model.pendingNewCards then
+                ( model, Cmd.none )
+            else
+                ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False }
+                , Cmd.batch [ generateCards diff, playSound "click" ]
+                )
 
         ChangeTheme t ->
             let newModel = { model | theme = t }
@@ -1205,53 +1223,67 @@ update msg model =
             in
             case mode of
                 Daily ->
-                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [] }
+                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False }
                     in ( newModel, Cmd.batch [ generateDailyCards model.dailyDate, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 TimeAttack ->
-                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Classic ->
-                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info }
+                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Review ->
                     if List.isEmpty model.skippedProblems then
-                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info }
-                        in ( newModel, playSound "click" )
+                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False }
+                        in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
                     else
-                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True }
+                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False }
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
 
         StartTimeAttack ->
-            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True }
+            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False }
             in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
 
         StartReview ->
             if List.isEmpty model.skippedProblems then
-                ( { model | message = "错题本为空", messageType = Info }, playSound "click" )
+                ( { model | message = "错题本为空", messageType = Info, gameMode = Classic, shieldActive = False }, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
             else
-                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True }
+                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False }
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
 
         CardClick val ->
-            if List.any (\c -> c.value == val) model.cards then
+            if model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0) then
+                ( model, Cmd.none )
+            else if List.any (\c -> c.value == val) model.cards then
                 let newInput = model.input ++ String.fromInt val
                     live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-                in ( { model | input = newInput, liveResult = live }, Cmd.batch [ playSound "key", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
+                    bracketHint = checkBrackets newInput
+                    usedHint = computeUsedNumsHint newInput (List.map (\c -> toFloat c.value) model.cards)
+                    combinedHint = if String.isEmpty bracketHint then usedHint else bracketHint ++ (if String.isEmpty usedHint then "" else " | " ++ usedHint)
+                in ( { model | input = newInput, liveResult = live, inputHint = combinedHint }, Cmd.batch [ playSound "key", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input") ] )
             else
                 ( model, Cmd.none )
 
         BackspaceInput ->
-            let tokens = tokenize model.input
-                newTokens = List.take (max 0 (List.length tokens - 1)) tokens
-                newInput = String.join "" newTokens
-                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = newInput, liveResult = live }, Cmd.none )
+            if model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0) then
+                ( model, Cmd.none )
+            else
+                let newInput = String.dropRight 1 model.input
+                    live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+                    bracketHint = checkBrackets newInput
+                    usedHint = computeUsedNumsHint newInput (List.map (\c -> toFloat c.value) model.cards)
+                    combinedHint = if String.isEmpty bracketHint then usedHint else bracketHint ++ (if String.isEmpty usedHint then "" else " | " ++ usedHint)
+                in ( { model | input = newInput, liveResult = live, inputHint = combinedHint }, Cmd.none )
 
         KeypadInput s ->
-            let baseInput = model.input ++ s
-                newInput = if s == "(" then baseInput ++ ")" else baseInput
-                live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
-            in ( { model | input = newInput, liveResult = live }, playSound "key" )
+            if model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0) then
+                ( model, Cmd.none )
+            else
+                let newInput = model.input ++ s
+                    live = computeLiveResult newInput (List.map (\c -> toFloat c.value) model.cards)
+                    bracketHint = checkBrackets newInput
+                    usedHint = computeUsedNumsHint newInput (List.map (\c -> toFloat c.value) model.cards)
+                    combinedHint = if String.isEmpty bracketHint then usedHint else bracketHint ++ (if String.isEmpty usedHint then "" else " | " ++ usedHint)
+                in ( { model | input = newInput, liveResult = live, inputHint = combinedHint }, playSound "key" )
 
         ToggleKeypad ->
             ( { model | keypadEnabled = not model.keypadEnabled }, Cmd.none )
@@ -1260,20 +1292,26 @@ update msg model =
             ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
 
         ShowSteps ->
-            let steps = case List.head model.allSolutions of
-                    Nothing -> []
-                    Just first ->
-                        case parseExpr (tokenize first) of
-                            Just (expr, rest) ->
-                                if List.isEmpty rest then stepByStepSolve expr else []
-                            Nothing -> []
-            in ( { model | showSteps = True, stepByStep = steps }, playSound "click" )
+            if model.pendingNewCards then
+                ( model, Cmd.none )
+            else if List.isEmpty model.allSolutions then
+                ( { model | message = "这道题没有解法，无法显示步骤", messageType = Info }, playSound "click" )
+            else
+                let steps = case List.head model.allSolutions of
+                        Nothing -> []
+                        Just first ->
+                            case parseExpr (tokenize first) of
+                                Just (expr, rest) ->
+                                    if List.isEmpty rest then stepByStepSolve expr else []
+                                Nothing -> []
+                in ( { model | showSteps = True, stepByStep = steps }, playSound "click" )
 
         HideSteps ->
             ( { model | showSteps = False }, Cmd.none )
 
         ShareProblem ->
-            let shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/"
+            let hash = String.join "," (List.map (\c -> String.fromInt c.value) model.cards)
+                shareText = "24点挑战：" ++ String.join ", " (List.map (\c -> c.display) model.cards) ++ "，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/#" ++ hash
                 newShared = model.sharedCount + 1
             in ( { model | message = "题目已复制到剪贴板", messageType = Info, sharedCount = newShared }, copyToClipboard shareText )
 
@@ -1527,8 +1565,8 @@ gameModeName mode =
 themeName : Theme -> String
 themeName t =
     case t of
-        Dark -> "Dark"
-        Light -> "Light"
+        Dark -> "深色"
+        Light -> "浅色"
 
 
 subscriptions : Model -> Sub Msg
@@ -1884,7 +1922,7 @@ viewCard card streak =
             else if streak >= 3 then " streak-glow"
             else ""
     in
-    div [ class ("card" ++ glowClass), onClick (CardClick card.value), title ("点击输入 " ++ String.fromInt card.value) ]
+    div [ class ("card" ++ glowClass), onClick (CardClick card.value), title ("点击输入 " ++ card.display) ]
         [ div [ class "card-corner-top" ]
             [ span [ style "color" card.color, style "font-size" "1.1em", style "font-weight" "800" ] [ text card.display ]
             , span [ style "color" card.color, style "font-size" "0.85em" ] [ text card.suit ]
@@ -2084,6 +2122,7 @@ view model =
                 , placeholder "输入算式，如 (3+3)*8/2  ·  Enter提交  ·  Esc清除  ·  Backspace退格  ·  点击牌输入"
                 , onInput UpdateInput
                 , on "keydown" (D.map decodeKey keyDecoder)
+                , disabled (model.pendingNewCards || (model.gameMode == TimeAttack && model.timeLeft <= 0))
                 ]
                 []
             ]
@@ -2226,7 +2265,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.7" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.13" ]
         ]
 
 

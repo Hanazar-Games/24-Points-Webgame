@@ -5253,7 +5253,6 @@ var $author$project$Main$NewCards = function (a) {
 	return {$: 'NewCards', a: a};
 };
 var $author$project$Main$Normal = {$: 'Normal'};
-var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$List$drop = F2(
 	function (n, list) {
 		drop:
@@ -5581,12 +5580,6 @@ var $author$project$Main$generateCards = function (diff) {
 			4,
 			$author$project$Main$randomCard(maxVal)));
 };
-var $elm$json$Json$Encode$null = _Json_encodeNull;
-var $author$project$Main$loadFromStorage = _Platform_outgoingPort(
-	'loadFromStorage',
-	function ($) {
-		return $elm$json$Json$Encode$null;
-	});
 var $elm$core$List$maybeCons = F3(
 	function (f, mx, xs) {
 		var _v0 = f(mx);
@@ -5690,24 +5683,14 @@ var $author$project$Main$init = function (flags) {
 			_Utils_update(
 				baseModel,
 				{message: '好友分享的题目！来挑战吧！', messageType: $author$project$Main$Info}),
-			$elm$core$Platform$Cmd$batch(
-				_List_fromArray(
-					[
-						A2(
-						$elm$core$Task$perform,
-						$author$project$Main$NewCards,
-						$elm$core$Task$succeed(cards)),
-						$author$project$Main$loadFromStorage(_Utils_Tuple0)
-					])));
+			A2(
+				$elm$core$Task$perform,
+				$author$project$Main$NewCards,
+				$elm$core$Task$succeed(cards)));
 	} else {
 		return _Utils_Tuple2(
 			baseModel,
-			$elm$core$Platform$Cmd$batch(
-				_List_fromArray(
-					[
-						$author$project$Main$generateCards($author$project$Main$Normal),
-						$author$project$Main$loadFromStorage(_Utils_Tuple0)
-					])));
+			$author$project$Main$generateCards($author$project$Main$Normal));
 	}
 };
 var $elm$json$Json$Decode$string = _Json_decodeString;
@@ -6202,6 +6185,7 @@ var $elm$core$Task$attempt = F2(
 							$elm$core$Result$Ok),
 						task))));
 	});
+var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$String$indices = _String_indexes;
 var $author$project$Main$checkBrackets = function (s) {
 	var opens = $elm$core$List$length(
@@ -7045,6 +7029,10 @@ var $author$project$Main$difficultyName = function (diff) {
 			return '高级（必须用除法）';
 	}
 };
+var $elm$core$String$dropRight = F2(
+	function (n, string) {
+		return (n < 1) ? string : A3($elm$core$String$slice, 0, -n, string);
+	});
 var $elm$json$Json$Encode$bool = _Json_wrap;
 var $elm$json$Json$Encode$int = _Json_wrap;
 var $elm$json$Json$Encode$object = function (pairs) {
@@ -8007,6 +7995,7 @@ var $author$project$Main$parseAndValidate = F2(
 			}
 		}
 	});
+var $elm$json$Json$Encode$null = _Json_encodeNull;
 var $author$project$Main$releaseWakeLock = _Platform_outgoingPort(
 	'releaseWakeLock',
 	function ($) {
@@ -8331,6 +8320,8 @@ var $author$project$Main$update = F2(
 									hintLevel: 0,
 									hintText: '',
 									input: '',
+									inputHint: '',
+									liveResult: '',
 									message: baseMsg,
 									messageType: $author$project$Main$Info,
 									pendingNewCards: false,
@@ -8385,119 +8376,136 @@ var $author$project$Main$update = F2(
 						{input: s, inputHint: combinedHint, liveResult: live}),
 					$elm$core$Platform$Cmd$none);
 			case 'SubmitAnswer':
-				var newAttempts = model.totalAttempts + 1;
-				var cardValues = A2(
-					$elm$core$List$map,
-					function (c) {
-						return c.value;
-					},
-					model.cards);
-				var _v4 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
-				if (_v4.$ === 'Ok') {
-					var result = _v4.a;
-					if ($elm$core$Basics$abs(result - 24) < 0.0001) {
-						if (_Utils_eq(model.difficulty, $author$project$Main$Hard)) {
-							var _v5 = $author$project$Main$parseExpr(
-								$author$project$Main$tokenize(model.input));
-							if (_v5.$ === 'Just') {
-								var _v6 = _v5.a;
-								var expr = _v6.a;
-								var rest = _v6.b;
-								if ($elm$core$List$isEmpty(rest) && $author$project$Main$exprHasDiv(expr)) {
+				if (model.pendingNewCards) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					if (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0)) {
+						return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+					} else {
+						var newAttempts = model.totalAttempts + 1;
+						var cardValues = A2(
+							$elm$core$List$map,
+							function (c) {
+								return c.value;
+							},
+							model.cards);
+						var _v4 = A2($author$project$Main$parseAndValidate, model.input, cardValues);
+						if (_v4.$ === 'Ok') {
+							var result = _v4.a;
+							if ($elm$core$Basics$abs(result - 24) < 0.0001) {
+								if (_Utils_eq(model.difficulty, $author$project$Main$Hard)) {
+									var _v5 = $author$project$Main$parseExpr(
+										$author$project$Main$tokenize(model.input));
+									if (_v5.$ === 'Just') {
+										var _v6 = _v5.a;
+										var expr = _v6.a;
+										var rest = _v6.b;
+										if ($elm$core$List$isEmpty(rest) && $author$project$Main$exprHasDiv(expr)) {
+											return $author$project$Main$handleCorrect(
+												_Utils_update(
+													model,
+													{totalAttempts: newAttempts}));
+										} else {
+											var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
+											return _Utils_Tuple2(
+												_Utils_update(
+													model,
+													{history: newHistory, message: 'Hard 模式答案必须用到除法！', messageType: $author$project$Main$Error, streak: 0, totalAttempts: newAttempts}),
+												$author$project$Main$playSound('error'));
+										}
+									} else {
+										return $author$project$Main$handleCorrect(
+											_Utils_update(
+												model,
+												{totalAttempts: newAttempts}));
+									}
+								} else {
 									return $author$project$Main$handleCorrect(
 										_Utils_update(
 											model,
 											{totalAttempts: newAttempts}));
-								} else {
-									var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
-									return _Utils_Tuple2(
-										_Utils_update(
-											model,
-											{history: newHistory, message: 'Hard 模式答案必须用到除法！', messageType: $author$project$Main$Error, streak: 0, totalAttempts: newAttempts}),
-										$author$project$Main$playSound('error'));
 								}
 							} else {
-								return $author$project$Main$handleCorrect(
-									_Utils_update(
-										model,
-										{totalAttempts: newAttempts}));
+								var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
+								var errModel = _Utils_update(
+									model,
+									{
+										history: newHistory,
+										message: '结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
+										messageType: $author$project$Main$Error,
+										shieldActive: false,
+										streak: 0,
+										totalAttempts: newAttempts
+									});
+								return _Utils_Tuple2(
+									errModel,
+									$author$project$Main$playSound('error'));
 							}
 						} else {
-							return $author$project$Main$handleCorrect(
-								_Utils_update(
-									model,
-									{totalAttempts: newAttempts}));
+							var errMsg = _v4.a;
+							var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
+							var newModel = _Utils_update(
+								model,
+								{history: newHistory, message: errMsg, messageType: $author$project$Main$Error, shieldActive: false, streak: 0, totalAttempts: newAttempts});
+							return _Utils_Tuple2(
+								newModel,
+								$elm$core$Platform$Cmd$batch(
+									_List_fromArray(
+										[
+											$author$project$Main$saveCmd(newModel),
+											$author$project$Main$playSound('error'),
+											$author$project$Main$vibrate(150)
+										])));
 						}
-					} else {
-						var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
-						var errModel = _Utils_update(
-							model,
-							{
-								history: newHistory,
-								message: '结果是 ' + ($author$project$Main$fmt(result) + '，不是24！'),
-								messageType: $author$project$Main$Error,
-								streak: 0,
-								totalAttempts: newAttempts
-							});
-						return _Utils_Tuple2(
-							errModel,
-							$author$project$Main$playSound('error'));
 					}
-				} else {
-					var errMsg = _v4.a;
-					var newHistory = $elm$core$String$isEmpty(model.input) ? model.history : A2($author$project$Main$addToHistory, model.input, model.history);
-					var newModel = _Utils_update(
-						model,
-						{history: newHistory, message: errMsg, messageType: $author$project$Main$Error, streak: 0, totalAttempts: newAttempts});
-					return _Utils_Tuple2(
-						newModel,
-						$elm$core$Platform$Cmd$batch(
-							_List_fromArray(
-								[
-									$author$project$Main$saveCmd(newModel),
-									$author$project$Main$playSound('error'),
-									$author$project$Main$vibrate(150)
-								])));
 				}
 			case 'ShowHint':
-				var _v7 = model.allSolutions;
-				if (!_v7.b) {
-					return _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{message: '这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
-						$author$project$Main$playSound('click'));
+				if (model.pendingNewCards) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 				} else {
-					var first = _v7.a;
-					var steps = function () {
-						var _v8 = $author$project$Main$parseExpr(
-							$author$project$Main$tokenize(first));
-						if (_v8.$ === 'Just') {
-							var _v9 = _v8.a;
-							var expr = _v9.a;
-							var rest = _v9.b;
-							return $elm$core$List$isEmpty(rest) ? $author$project$Main$stepByStepSolve(expr) : _List_Nil;
-						} else {
-							return _List_Nil;
-						}
-					}();
-					var newLevel = A2($elm$core$Basics$min, 3, model.hintLevel + 1);
-					var hint = A2($author$project$Main$getStepHint, newLevel, first);
-					return _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{
-								hintLevel: newLevel,
-								hintText: hint,
-								message: '提示已显示（' + ($elm$core$String$fromInt(newLevel) + '/3）'),
-								messageType: $author$project$Main$Info,
-								showHint: true,
-								stepByStep: steps
-							}),
-						$author$project$Main$playSound('click'));
+					var _v7 = model.allSolutions;
+					if (!_v7.b) {
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{message: '这道题无解！点击「跳过」换一组。', messageType: $author$project$Main$Info}),
+							$author$project$Main$playSound('click'));
+					} else {
+						var first = _v7.a;
+						var steps = function () {
+							var _v8 = $author$project$Main$parseExpr(
+								$author$project$Main$tokenize(first));
+							if (_v8.$ === 'Just') {
+								var _v9 = _v8.a;
+								var expr = _v9.a;
+								var rest = _v9.b;
+								return $elm$core$List$isEmpty(rest) ? $author$project$Main$stepByStepSolve(expr) : _List_Nil;
+							} else {
+								return _List_Nil;
+							}
+						}();
+						var newLevel = A2($elm$core$Basics$min, 3, model.hintLevel + 1);
+						var hint = A2($author$project$Main$getStepHint, newLevel, first);
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{
+									hintLevel: newLevel,
+									hintText: hint,
+									message: '提示已显示（' + ($elm$core$String$fromInt(newLevel) + '/3）'),
+									messageType: $author$project$Main$Info,
+									showHint: true,
+									stepByStep: steps
+								}),
+							$author$project$Main$playSound('click'));
+					}
 				}
 			case 'ShowAllAnswers':
-				return _Utils_Tuple2(
+				return model.pendingNewCards ? _Utils_Tuple2(model, $elm$core$Platform$Cmd$none) : ($elm$core$List$isEmpty(model.allSolutions) ? _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{message: '这道题没有解法，请跳过换一组', messageType: $author$project$Main$Info, showAllAnswers: true}),
+					$author$project$Main$playSound('click')) : _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
@@ -8506,14 +8514,14 @@ var $author$project$Main$update = F2(
 							messageType: $author$project$Main$Info,
 							showAllAnswers: true
 						}),
-					$author$project$Main$playSound('click'));
+					$author$project$Main$playSound('click')));
 			case 'NewGame':
 				var _v10 = model.gameMode;
 				switch (_v10.$) {
 					case 'TimeAttack':
 						var newModel = _Utils_update(
 							model,
-							{message: '计时挑战开始！', messageType: $author$project$Main$Info, pendingNewCards: true, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
+							{message: '计时挑战开始！', messageType: $author$project$Main$Info, pendingNewCards: true, shieldActive: false, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
@@ -8526,7 +8534,7 @@ var $author$project$Main$update = F2(
 					case 'Review':
 						var newModel = _Utils_update(
 							model,
-							{message: '错题复习新局！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, streak: 0, timer: 0});
+							{message: '错题复习新局！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, streak: 0, timer: 0});
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
@@ -8539,7 +8547,7 @@ var $author$project$Main$update = F2(
 						return _Utils_Tuple2(
 							_Utils_update(
 								model,
-								{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, streak: 0, timer: 0}),
+								{message: '新游戏开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, streak: 0, timer: 0}),
 							$elm$core$Platform$Cmd$batch(
 								_List_fromArray(
 									[
@@ -8754,7 +8762,7 @@ var $author$project$Main$update = F2(
 					$author$project$Main$copyToClipboard(ans + ' = 24'));
 			case 'ChangeDifficulty':
 				var diff = msg.a;
-				return _Utils_Tuple2(
+				return model.pendingNewCards ? _Utils_Tuple2(model, $elm$core$Platform$Cmd$none) : _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
@@ -8763,6 +8771,7 @@ var $author$project$Main$update = F2(
 							messageType: $author$project$Main$Info,
 							newAchievements: _List_Nil,
 							pendingNewCards: true,
+							shieldActive: false,
 							showAllAnswers: false,
 							streak: 0
 						}),
@@ -8787,7 +8796,7 @@ var $author$project$Main$update = F2(
 					case 'Daily':
 						var newModel = _Utils_update(
 							model,
-							{gameMode: $author$project$Main$Daily, hintLevel: 0, input: '', newAchievements: _List_Nil, showAllAnswers: false, showHint: false, streak: 0});
+							{gameMode: $author$project$Main$Daily, hintLevel: 0, input: '', newAchievements: _List_Nil, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0});
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
@@ -8800,7 +8809,7 @@ var $author$project$Main$update = F2(
 					case 'TimeAttack':
 						var newModel = _Utils_update(
 							model,
-							{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
+							{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
@@ -8813,7 +8822,7 @@ var $author$project$Main$update = F2(
 					case 'Classic':
 						var newModel = _Utils_update(
 							model,
-							{gameMode: $author$project$Main$Classic, hintLevel: 0, input: '', message: '返回经典模式', messageType: $author$project$Main$Info, newAchievements: _List_Nil, showAllAnswers: false, showHint: false, streak: 0});
+							{gameMode: $author$project$Main$Classic, hintLevel: 0, input: '', message: '返回经典模式', messageType: $author$project$Main$Info, newAchievements: _List_Nil, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0});
 						return _Utils_Tuple2(
 							newModel,
 							$elm$core$Platform$Cmd$batch(
@@ -8827,14 +8836,19 @@ var $author$project$Main$update = F2(
 						if ($elm$core$List$isEmpty(model.skippedProblems)) {
 							var newModel = _Utils_update(
 								model,
-								{gameMode: $author$project$Main$Classic, message: '错题本为空，无法复习', messageType: $author$project$Main$Info});
+								{gameMode: $author$project$Main$Classic, message: '错题本为空，无法复习', messageType: $author$project$Main$Info, shieldActive: false});
 							return _Utils_Tuple2(
 								newModel,
-								$author$project$Main$playSound('click'));
+								$elm$core$Platform$Cmd$batch(
+									_List_fromArray(
+										[
+											$author$project$Main$generateCards(model.difficulty),
+											$author$project$Main$playSound('click')
+										])));
 						} else {
 							var newModel = _Utils_update(
 								model,
-								{gameMode: $author$project$Main$Review, hintLevel: 0, input: '', message: '错题复习模式！复习你跳过的题目', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0});
+								{gameMode: $author$project$Main$Review, hintLevel: 0, input: '', message: '错题复习模式！复习你跳过的题目', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0});
 							return _Utils_Tuple2(
 								newModel,
 								$elm$core$Platform$Cmd$batch(
@@ -8849,7 +8863,7 @@ var $author$project$Main$update = F2(
 			case 'StartTimeAttack':
 				var newModel = _Utils_update(
 					model,
-					{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
+					{gameMode: $author$project$Main$TimeAttack, hintLevel: 0, input: '', message: '计时挑战开始！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0, timeAttackScore: 0, timeAttackTotalQuestions: 0, timeLeft: 60, timer: 0});
 				return _Utils_Tuple2(
 					newModel,
 					$elm$core$Platform$Cmd$batch(
@@ -8864,12 +8878,17 @@ var $author$project$Main$update = F2(
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
-							{message: '错题本为空', messageType: $author$project$Main$Info}),
-						$author$project$Main$playSound('click'));
+							{gameMode: $author$project$Main$Classic, message: '错题本为空', messageType: $author$project$Main$Info, shieldActive: false}),
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$generateCards(model.difficulty),
+									$author$project$Main$playSound('click')
+								])));
 				} else {
 					var newModel = _Utils_update(
 						model,
-						{gameMode: $author$project$Main$Review, hintLevel: 0, input: '', message: '错题复习模式！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, showAllAnswers: false, showHint: false, streak: 0});
+						{gameMode: $author$project$Main$Review, hintLevel: 0, input: '', message: '错题复习模式！', messageType: $author$project$Main$Info, newAchievements: _List_Nil, pendingNewCards: true, shieldActive: false, showAllAnswers: false, showHint: false, streak: 0});
 					return _Utils_Tuple2(
 						newModel,
 						$elm$core$Platform$Cmd$batch(
@@ -8881,15 +8900,73 @@ var $author$project$Main$update = F2(
 				}
 			case 'CardClick':
 				var val = msg.a;
-				if (A2(
-					$elm$core$List$any,
-					function (c) {
-						return _Utils_eq(c.value, val);
-					},
-					model.cards)) {
-					var newInput = _Utils_ap(
-						model.input,
-						$elm$core$String$fromInt(val));
+				if (model.pendingNewCards || (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0))) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					if (A2(
+						$elm$core$List$any,
+						function (c) {
+							return _Utils_eq(c.value, val);
+						},
+						model.cards)) {
+						var newInput = _Utils_ap(
+							model.input,
+							$elm$core$String$fromInt(val));
+						var usedHint = A2(
+							$author$project$Main$computeUsedNumsHint,
+							newInput,
+							A2(
+								$elm$core$List$map,
+								function (c) {
+									return c.value;
+								},
+								model.cards));
+						var live = A2(
+							$author$project$Main$computeLiveResult,
+							newInput,
+							A2(
+								$elm$core$List$map,
+								function (c) {
+									return c.value;
+								},
+								model.cards));
+						var bracketHint = $author$project$Main$checkBrackets(newInput);
+						var combinedHint = $elm$core$String$isEmpty(bracketHint) ? usedHint : _Utils_ap(
+							bracketHint,
+							$elm$core$String$isEmpty(usedHint) ? '' : (' | ' + usedHint));
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{input: newInput, inputHint: combinedHint, liveResult: live}),
+							$elm$core$Platform$Cmd$batch(
+								_List_fromArray(
+									[
+										$author$project$Main$playSound('key'),
+										A2(
+										$elm$core$Task$attempt,
+										function (_v17) {
+											return $author$project$Main$NoOp;
+										},
+										$elm$browser$Browser$Dom$focus('expr-input'))
+									])));
+					} else {
+						return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+					}
+				}
+			case 'BackspaceInput':
+				if (model.pendingNewCards || (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0))) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					var newInput = A2($elm$core$String$dropRight, 1, model.input);
+					var usedHint = A2(
+						$author$project$Main$computeUsedNumsHint,
+						newInput,
+						A2(
+							$elm$core$List$map,
+							function (c) {
+								return c.value;
+							},
+							model.cards));
 					var live = A2(
 						$author$project$Main$computeLiveResult,
 						newInput,
@@ -8899,66 +8976,50 @@ var $author$project$Main$update = F2(
 								return c.value;
 							},
 							model.cards));
+					var bracketHint = $author$project$Main$checkBrackets(newInput);
+					var combinedHint = $elm$core$String$isEmpty(bracketHint) ? usedHint : _Utils_ap(
+						bracketHint,
+						$elm$core$String$isEmpty(usedHint) ? '' : (' | ' + usedHint));
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
-							{input: newInput, liveResult: live}),
-						$elm$core$Platform$Cmd$batch(
-							_List_fromArray(
-								[
-									$author$project$Main$playSound('key'),
-									A2(
-									$elm$core$Task$attempt,
-									function (_v17) {
-										return $author$project$Main$NoOp;
-									},
-									$elm$browser$Browser$Dom$focus('expr-input'))
-								])));
-				} else {
-					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+							{input: newInput, inputHint: combinedHint, liveResult: live}),
+						$elm$core$Platform$Cmd$none);
 				}
-			case 'BackspaceInput':
-				var tokens = $author$project$Main$tokenize(model.input);
-				var newTokens = A2(
-					$elm$core$List$take,
-					A2(
-						$elm$core$Basics$max,
-						0,
-						$elm$core$List$length(tokens) - 1),
-					tokens);
-				var newInput = A2($elm$core$String$join, '', newTokens);
-				var live = A2(
-					$author$project$Main$computeLiveResult,
-					newInput,
-					A2(
-						$elm$core$List$map,
-						function (c) {
-							return c.value;
-						},
-						model.cards));
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{input: newInput, liveResult: live}),
-					$elm$core$Platform$Cmd$none);
 			case 'KeypadInput':
 				var s = msg.a;
-				var baseInput = _Utils_ap(model.input, s);
-				var newInput = (s === '(') ? (baseInput + ')') : baseInput;
-				var live = A2(
-					$author$project$Main$computeLiveResult,
-					newInput,
-					A2(
-						$elm$core$List$map,
-						function (c) {
-							return c.value;
-						},
-						model.cards));
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{input: newInput, liveResult: live}),
-					$author$project$Main$playSound('key'));
+				if (model.pendingNewCards || (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0))) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					var newInput = _Utils_ap(model.input, s);
+					var usedHint = A2(
+						$author$project$Main$computeUsedNumsHint,
+						newInput,
+						A2(
+							$elm$core$List$map,
+							function (c) {
+								return c.value;
+							},
+							model.cards));
+					var live = A2(
+						$author$project$Main$computeLiveResult,
+						newInput,
+						A2(
+							$elm$core$List$map,
+							function (c) {
+								return c.value;
+							},
+							model.cards));
+					var bracketHint = $author$project$Main$checkBrackets(newInput);
+					var combinedHint = $elm$core$String$isEmpty(bracketHint) ? usedHint : _Utils_ap(
+						bracketHint,
+						$elm$core$String$isEmpty(usedHint) ? '' : (' | ' + usedHint));
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{input: newInput, inputHint: combinedHint, liveResult: live}),
+						$author$project$Main$playSound('key'));
+				}
 			case 'ToggleKeypad':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -8972,29 +9033,41 @@ var $author$project$Main$update = F2(
 						{showSkippedProblems: !model.showSkippedProblems}),
 					$elm$core$Platform$Cmd$none);
 			case 'ShowSteps':
-				var steps = function () {
-					var _v18 = $elm$core$List$head(model.allSolutions);
-					if (_v18.$ === 'Nothing') {
-						return _List_Nil;
+				if (model.pendingNewCards) {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				} else {
+					if ($elm$core$List$isEmpty(model.allSolutions)) {
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{message: '这道题没有解法，无法显示步骤', messageType: $author$project$Main$Info}),
+							$author$project$Main$playSound('click'));
 					} else {
-						var first = _v18.a;
-						var _v19 = $author$project$Main$parseExpr(
-							$author$project$Main$tokenize(first));
-						if (_v19.$ === 'Just') {
-							var _v20 = _v19.a;
-							var expr = _v20.a;
-							var rest = _v20.b;
-							return $elm$core$List$isEmpty(rest) ? $author$project$Main$stepByStepSolve(expr) : _List_Nil;
-						} else {
-							return _List_Nil;
-						}
+						var steps = function () {
+							var _v18 = $elm$core$List$head(model.allSolutions);
+							if (_v18.$ === 'Nothing') {
+								return _List_Nil;
+							} else {
+								var first = _v18.a;
+								var _v19 = $author$project$Main$parseExpr(
+									$author$project$Main$tokenize(first));
+								if (_v19.$ === 'Just') {
+									var _v20 = _v19.a;
+									var expr = _v20.a;
+									var rest = _v20.b;
+									return $elm$core$List$isEmpty(rest) ? $author$project$Main$stepByStepSolve(expr) : _List_Nil;
+								} else {
+									return _List_Nil;
+								}
+							}
+						}();
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{showSteps: true, stepByStep: steps}),
+							$author$project$Main$playSound('click'));
 					}
-				}();
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{showSteps: true, stepByStep: steps}),
-					$author$project$Main$playSound('click'));
+				}
 			case 'HideSteps':
 				return _Utils_Tuple2(
 					_Utils_update(
@@ -9002,6 +9075,16 @@ var $author$project$Main$update = F2(
 						{showSteps: false}),
 					$elm$core$Platform$Cmd$none);
 			case 'ShareProblem':
+				var newShared = model.sharedCount + 1;
+				var hash = A2(
+					$elm$core$String$join,
+					',',
+					A2(
+						$elm$core$List$map,
+						function (c) {
+							return $elm$core$String$fromInt(c.value);
+						},
+						model.cards));
 				var shareText = '24点挑战：' + (A2(
 					$elm$core$String$join,
 					', ',
@@ -9010,8 +9093,7 @@ var $author$project$Main$update = F2(
 						function (c) {
 							return c.display;
 						},
-						model.cards)) + '，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/');
-				var newShared = model.sharedCount + 1;
+						model.cards)) + ('，你能算出24吗？ https://hanazar-games.github.io/24-Points-Webgame/#' + hash));
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
@@ -9247,6 +9329,14 @@ var $author$project$Main$decodeKey = function (_v0) {
 	var ctrlKey = _v0.ctrlKey;
 	return ((key === 'Enter') && ctrlKey) ? $author$project$Main$SubmitAnswer : ((key === 'Enter') ? $author$project$Main$SubmitAnswer : ((key === 'Escape') ? $author$project$Main$UpdateInput('') : ((key === 'Backspace') ? $author$project$Main$BackspaceInput : $author$project$Main$NoOp)));
 };
+var $elm$html$Html$Attributes$boolProperty = F2(
+	function (key, bool) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$bool(bool));
+	});
+var $elm$html$Html$Attributes$disabled = $elm$html$Html$Attributes$boolProperty('disabled');
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $author$project$Main$formatTime = function (seconds) {
 	var s = A2($elm$core$Basics$modBy, 60, seconds);
@@ -9348,9 +9438,9 @@ var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
 var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $author$project$Main$themeName = function (t) {
 	if (t.$ === 'Dark') {
-		return 'Dark';
+		return '深色';
 	} else {
-		return 'Light';
+		return '浅色';
 	}
 };
 var $elm$html$Html$Attributes$title = $elm$html$Html$Attributes$stringProperty('title');
@@ -9406,8 +9496,7 @@ var $author$project$Main$viewCard = F2(
 					$elm$html$Html$Attributes$class('card' + glowClass),
 					$elm$html$Html$Events$onClick(
 					$author$project$Main$CardClick(card.value)),
-					$elm$html$Html$Attributes$title(
-					'点击输入 ' + $elm$core$String$fromInt(card.value))
+					$elm$html$Html$Attributes$title('点击输入 ' + card.display)
 				]),
 			_List_fromArray(
 				[
@@ -10284,7 +10373,9 @@ var $author$project$Main$view = function (model) {
 								A2(
 								$elm$html$Html$Events$on,
 								'keydown',
-								A2($elm$json$Json$Decode$map, $author$project$Main$decodeKey, $author$project$Main$keyDecoder))
+								A2($elm$json$Json$Decode$map, $author$project$Main$decodeKey, $author$project$Main$keyDecoder)),
+								$elm$html$Html$Attributes$disabled(
+								model.pendingNewCards || (_Utils_eq(model.gameMode, $author$project$Main$TimeAttack) && (model.timeLeft <= 0)))
 							]),
 						_List_Nil)
 					])),
@@ -11045,7 +11136,7 @@ var $author$project$Main$view = function (model) {
 					]),
 				_List_fromArray(
 					[
-						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.7')
+						$elm$html$Html$text('Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.13')
 					]))
 			]));
 };
