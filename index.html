@@ -2,16 +2,16 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>24点挑战 v0.4.19</title>
+  <title>24点挑战 v0.4.20</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#1a1a2e">
-  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.19">
+  <meta name="theme-color" content="#1a1a2e" id="theme-color">
+  <meta name="description" content="用Elm构建的纯函数式24点扑克牌益智游戏 v0.4.20">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   <style>
-    body { padding: 0; margin: 0; background: #1a1a2e; overflow-x: hidden; padding-bottom: env(safe-area-inset-bottom); }
+    body { padding: 0; margin: 0; background: #1a1a2e; overflow-x: hidden; padding-bottom: env(safe-area-inset-bottom); transition: background 0.3s; }
     #particles { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
     .particle { position: absolute; border-radius: 50%; animation: particleBurst 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
     @keyframes particleBurst {
@@ -37,6 +37,9 @@
       var isFirstVisit = !localStorage.getItem('24points-visited');
       if (isFirstVisit) localStorage.setItem('24points-visited', '1');
       var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var initialThemeColor = prefersDark ? '#1a1a2e' : '#f5f5f5';
+      document.body.style.background = initialThemeColor;
+      document.getElementById('theme-color').setAttribute('content', initialThemeColor);
       var app = Elm.Main.init({ node: document.getElementById("elm"), flags: { today: today, hash: window.location.hash, prefersDark: prefersDark, isFirstVisit: isFirstVisit, prefersReducedMotion: prefersReducedMotion } });
       var loading = document.getElementById('loading');
       if (loading) { loading.style.opacity = '0'; setTimeout(function() { loading.style.display = 'none'; }, 300); }
@@ -123,6 +126,7 @@
           else if (type === 'tick') SFX.tick();
           else if (type === 'key') SFX.key();
           else if (type.startsWith('streak:')) SFX.streak(parseInt(type.split(':')[1]));
+          else console.warn('Unknown sound type:', type);
         } catch(e) {}
       });
 
@@ -143,6 +147,12 @@
           document.execCommand('copy');
           document.body.removeChild(ta);
         }
+      });
+
+      app.ports.setThemeColor.subscribe(function(color) {
+        document.body.style.background = color;
+        var meta = document.getElementById('theme-color');
+        if (meta) meta.setAttribute('content', color);
       });
 
       app.ports.setSFX.subscribe(function(enabled) {
@@ -204,6 +214,7 @@
       });
 
       app.ports.spawnParticles.subscribe(function(count) {
+        if (prefersReducedMotion) return;
         var container = document.getElementById('particles');
         var colors = ['#e94560', '#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff9f45', '#c9b1ff', '#ff2e63'];
         var shapes = ['circle', 'square', 'diamond', 'star'];

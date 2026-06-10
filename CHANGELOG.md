@@ -4,7 +4,50 @@
 
 ---
 
-## 🚀 v0.4.19 — 当前最新版本
+## 🚀 v0.4.20 — 当前最新版本
+
+**发布日期**: 2026-06-07
+
+### 🔬 第四轮全方位深度审查与修复
+在 v0.4.19 基础上进行更深层次的全局审查，覆盖数据持久化语义正确性、状态管理完整性、UI/UX 响应式细节、SFX/动画优化，修复了 20+ 项问题。
+
+#### 🔴 数据持久化语义修复（严重）
+1. **`dailyBestTime` 错误使用 `max`** — 最佳时间越低越好，但原代码用 `max` 导致新纪录被旧慢时间覆盖。已改为 `min` 并正确处理 0 值。
+2. **`fastestSolve` 合并逻辑错误** — 同样因无条件优先存储值导致最快时间丢失。已改为取最小值（处理 0 值）。
+3. **`starCounts` 错误使用 `List.map2 max`** — 星级计数器是累计值，应该用 `(+)` 相加而非取最大值。已改为 `List.map2 (+)`。
+4. **`totalRated` 错误使用 `max`** — 同样应为累加而非取最大值。已改为 `+` 以保持与 `starCounts` 一致。
+5. **`timeAttackRecordDecoder.score` 缺少保护** — 添加 `D.maybe` 包装，避免旧/损坏数据导致整段历史丢失。
+6. **`dailyHistory` 无界增长** — 编码和解码均添加 `List.take 100` 截断，防止长期累积撑爆 localStorage。
+
+#### 🧹 状态管理全面清理
+7. **`NewCards` 未重置 `comboDisplay`** — 新牌开始时连击弹窗可能继续显示旧连击，已添加 `comboDisplay = Nothing, comboTimer = 0`。
+8. **切换模式/难度/新游戏状态残留** — `SetGameMode` 全部 5 分支、`ChangeDifficulty`、`StartTimeAttack`、`StartReview`、`NewGame` 全部 4 分支全面补充清理 `hintText`、`inputHint`、`liveResult`、`comboDisplay`、`customInput`。
+9. **`Skip` 状态残留** — 全部 3 个分支（TimeAttack/Custom/其他）全面清理临时状态，包括 `input`、`hintText`、`showSteps`、`lastRating`、`comboDisplay` 等。
+10. **`handleCorrect` 状态残留** — 全部 5 个模式分支（TimeAttack/Daily/Classic/Review/Custom）全面清理 `hintText`、`inputHint`、`liveResult`、`showAllAnswers`、`showSteps`、`stepByStep`。
+11. **TimeAttack 结束后状态残留** — 游戏结束分支现在清理 `input`、`showHint`、`showAllAnswers`、`showSteps`、`inputHint`、`liveResult`、`lastRating`、`comboDisplay`、`streak`、`shieldActive`，避免结束后 UI 混乱。
+12. **TimeAttack 结束后每秒重复触发** — `Tick` 中 `timeLeft <= 1` 导致游戏结束逻辑每秒重复执行（音效、震动、保存、释放 WakeLock）。已改为 `timeLeft == 1` 并在 `timeLeft <= 0` 时直接返回。
+13. **`StorageLoaded` 导入后 UI 混乱** — 导入数据后全面重置所有临时 UI 状态（消息、提示、步骤、评级、连击、输入等）。
+
+#### 🎨 UI/UX 细节修复
+14. **自定义面板移动端溢出** — `.tutorial-box` 添加 `box-sizing: border-box`，防止在 375px 屏幕上 padding 导致总宽度超出视口。
+15. **成就 Toast 窄屏溢出** — `.achievement-toast` 添加 `box-sizing: border-box`，确保 `max-width: 300px` 包含 padding。
+16. **评分面板被 hover 卡片遮挡** — `.rating-panel` 添加 `z-index: 5`，避免卡片 hover 放大时覆盖到面板上方。
+17. **主题色动态同步** — 新增 `setThemeColor` Port，`ChangeTheme` 切换时同步更新 `<meta name="theme-color">` 和 `body` 背景色，浅色主题下浏览器地址栏不再显示深色。
+18. **浅色主题加载闪烁** — `index.html` 初始脚本根据 `prefersDark` 立即设置 `body` 背景色，避免从深到浅的闪烁。
+
+#### 🔊 SFX / 动画优化
+19. **错题本展开缺少音效** — `ToggleSkippedProblems` 添加 `"click"` 音效反馈。
+20. **结果非24时缺少震动** — 与表达式格式错误的震动反馈统一，答案算错时现在也震动 150ms。
+21. **`playSound` 未知类型静默失败** — JS 端口添加 `console.warn`，便于调试新增声音类型。
+22. **`reduce-motion` 未在 JS 端阻止粒子创建** — `spawnParticles` 在 JS 端直接检查 `prefersReducedMotion`，跳过 DOM 创建和 `setTimeout` 注册，减少不必要的性能开销。
+
+### 🔧 维护
+- 全站版本号统一升级为 **v0.4.20**
+- Service Worker 缓存版本从 `v22` 升级到 `v23`
+
+---
+
+## 🚀 v0.4.19
 
 **发布日期**: 2026-06-07
 

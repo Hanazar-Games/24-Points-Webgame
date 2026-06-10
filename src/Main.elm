@@ -177,6 +177,7 @@ port playSound : String -> Cmd msg
 port spawnParticles : Int -> Cmd msg
 port setSFX : Bool -> Cmd msg
 port receiveSFXSetting : (Bool -> msg) -> Sub msg
+port setThemeColor : String -> Cmd msg
 port copyToClipboard : String -> Cmd msg
 port setHash : String -> Cmd msg
 port vibrate : Int -> Cmd msg
@@ -927,7 +928,7 @@ encodeStats model =
             , ("sharedCount", E.int model.sharedCount)
             , ("stepsWithKeypad", E.int model.stepsWithKeypad)
             , ("timeAttackHistory", E.list encodeTimeAttackRecord model.timeAttackHistory)
-            , ("dailyHistory", E.list E.string model.dailyHistory)
+            , ("dailyHistory", E.list E.string (List.take 100 model.dailyHistory))
             , ("skippedProblems", E.list (\p -> E.object [("cardValues", E.list E.int p.cardValues), ("answer", E.string p.answer)]) model.skippedProblems)
             , ("totalRated", E.int model.totalRated)
             , ("starCounts", E.list E.int model.starCounts)
@@ -992,7 +993,7 @@ decodeStats json model =
         
         timeAttackRecordDecoder =
             D.map3 TimeAttackRecord
-                (D.field "score" D.int)
+                (D.maybe (D.field "score" D.int) |> D.map (Maybe.withDefault 0))
                 (D.maybe (D.field "accuracy" D.string) |> D.map (Maybe.withDefault "N/A"))
                 (D.maybe (D.field "date" D.string) |> D.map (Maybe.withDefault ""))
 
@@ -1021,17 +1022,24 @@ decodeStats json model =
                         , theme = base.theme
                         , timeAttackBest = max model.timeAttackBest extra.timeAttackBest
                         , dailyCompleted = (extra.dailyCompletedDate == model.dailyDate)
-                        , dailyBestTime = if extra.dailyCompletedDate == model.dailyDate then max model.dailyBestTime extra.dailyBestTime else 0
-                        , fastestSolve = if extra.fastestSolve > 0 then extra.fastestSolve else model.fastestSolve
+                        , dailyBestTime = if extra.dailyCompletedDate == model.dailyDate then
+                            if model.dailyBestTime == 0 then extra.dailyBestTime
+                            else if extra.dailyBestTime == 0 then model.dailyBestTime
+                            else min model.dailyBestTime extra.dailyBestTime
+                          else 0
+                        , fastestSolve =
+                            if model.fastestSolve == 0 then extra.fastestSolve
+                            else if extra.fastestSolve == 0 then model.fastestSolve
+                            else min model.fastestSolve extra.fastestSolve
                         , totalAttempts = max model.totalAttempts extra.totalAttempts
                         , keypadEnabled = extra.keypadEnabled
                         , sharedCount = max model.sharedCount extra.sharedCount
                         , stepsWithKeypad = max model.stepsWithKeypad extra.stepsWithKeypad
                         , timeAttackHistory = tah
-                        , dailyHistory = dh
+                        , dailyHistory = List.take 100 dh
                         , skippedProblems = List.take 20 sp
-                        , totalRated = max model.totalRated ratings.totalRated
-                        , starCounts = normalizeStarCounts (List.map2 max model.starCounts ratings.starCounts)
+                        , totalRated = model.totalRated + ratings.totalRated
+                        , starCounts = normalizeStarCounts (List.map2 (+) model.starCounts ratings.starCounts)
                         }
                 )
                 baseDecoder
@@ -1196,6 +1204,8 @@ update msg model =
                     , inputHint = ""
                     , liveResult = ""
                     , lastRating = Nothing
+                    , comboDisplay = Nothing
+                    , comboTimer = 0
                   }
                 , Cmd.batch [ playSound "deal", Task.attempt (\_ -> NoOp) (Dom.focus "expr-input"), hashCmd ]
                 )
@@ -1234,7 +1244,7 @@ update msg model =
                     else
                         let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                             errModel = { model | message = "结果是 " ++ fmt result ++ "，不是24！", messageType = Error, streak = 0, shieldActive = False, history = newHistory, totalAttempts = newAttempts }
-                        in ( errModel, playSound "error" )
+                        in ( errModel, Cmd.batch [ playSound "error", vibrate 150 ] )
                 Err errMsg ->
                     let newHistory = if String.isEmpty model.input then model.history else addToHistory model.input model.history
                         newModel = { model | message = errMsg, messageType = Error, streak = 0, shieldActive = False, history = newHistory, totalAttempts = newAttempts }
@@ -1268,17 +1278,17 @@ update msg model =
         NewGame ->
             case model.gameMode of
                 TimeAttack ->
-                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], input = "", showHint = False, hintText = "", hintLevel = 0, showAllAnswers = False, newAchievements = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Review ->
-                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | streak = 0, message = "错题复习新局！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], input = "", showHint = False, hintText = "", hintLevel = 0, inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
                 Custom ->
-                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    ( { model | showCustomPanel = True, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, message = "请输入新的自定义题目", messageType = Info, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0 }
                     , playSound "click"
                     )
                 _ ->
-                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    ( { model | streak = 0, message = "新游戏开始！", messageType = Info, timer = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], input = "", showHint = False, hintText = "", hintLevel = 0, inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     , Cmd.batch [ generateCards model.difficulty, playSound "click" ]
                     )
 
@@ -1304,10 +1314,23 @@ update msg model =
                                     , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！扣5秒。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                                     , messageType = Info
                                     , showAllAnswers = True
+                                    , showHint = False
+                                    , hintText = ""
+                                    , hintLevel = 0
+                                    , showSteps = False
+                                    , stepByStep = []
+                                    , inputHint = ""
+                                    , liveResult = ""
+                                    , lastRating = Nothing
+                                    , comboDisplay = Nothing
+                                    , comboTimer = 0
+                                    , input = ""
+                                    , newAchievements = []
                                     , timeLeft = newTimeLeft
                                     , pendingNewCards = True
                                     , skippedProblems = newSkippedProblems
                                     , shieldActive = if hasShield then True else model.shieldActive
+                                    , customInput = ""
                                 }
                         in
                         ( newModel
@@ -1324,10 +1347,20 @@ update msg model =
                                     , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                                     , messageType = Info
                                     , showAllAnswers = True
-                                    , shieldActive = if hasShield then True else model.shieldActive
+                                    , showHint = False
+                                    , hintText = ""
+                                    , hintLevel = 0
+                                    , inputHint = ""
+                                    , liveResult = ""
                                     , lastRating = Nothing
                                     , showSteps = False
                                     , stepByStep = []
+                                    , comboDisplay = Nothing
+                                    , comboTimer = 0
+                                    , input = ""
+                                    , newAchievements = []
+                                    , shieldActive = if hasShield then True else model.shieldActive
+                                    , customInput = ""
                                 }
                         in
                         ( newModel
@@ -1344,9 +1377,22 @@ update msg model =
                                     , message = if hasShield then "护盾保护！跳过不中断连胜。答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions) else "跳过！答案是：" ++ Maybe.withDefault "" (List.head model.allSolutions)
                                     , messageType = Info
                                     , showAllAnswers = True
+                                    , showHint = False
+                                    , hintText = ""
+                                    , hintLevel = 0
+                                    , showSteps = False
+                                    , stepByStep = []
+                                    , inputHint = ""
+                                    , liveResult = ""
+                                    , lastRating = Nothing
+                                    , comboDisplay = Nothing
+                                    , comboTimer = 0
+                                    , input = ""
+                                    , newAchievements = []
                                     , pendingNewCards = True
                                     , skippedProblems = newSkippedProblems
                                     , shieldActive = if hasShield then True else model.shieldActive
+                                    , customInput = ""
                                 }
                         in
                         ( newModel
@@ -1360,7 +1406,9 @@ update msg model =
         Tick _ ->
             case model.gameMode of
                 TimeAttack ->
-                    if model.timeLeft <= 1 then
+                    if model.timeLeft <= 0 then
+                        ( model, Cmd.none )
+                    else if model.timeLeft == 1 then
                         let finalScore = model.timeAttackScore
                             newBest = max finalScore model.timeAttackBest
                             totalTA = model.timeAttackTotalQuestions
@@ -1369,7 +1417,7 @@ update msg model =
                             newHistory = newRecord :: List.take 9 model.timeAttackHistory
                             isNewRecord = finalScore > model.timeAttackBest && finalScore > 0
                             recordMsg = if isNewRecord then " 🎉 新纪录！" else ""
-                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！得分：" ++ String.fromInt finalScore ++ " | 准确率：" ++ accuracyStr ++ " | 最佳：" ++ String.fromInt newBest ++ recordMsg, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory }
+                            gameOverModel = { model | timeLeft = 0, timeAttackBest = newBest, message = "时间到！得分：" ++ String.fromInt finalScore ++ " | 准确率：" ++ accuracyStr ++ " | 最佳：" ++ String.fromInt newBest ++ recordMsg, messageType = Info, pendingNewCards = False, timeAttackHistory = newHistory, input = "", showHint = False, hintText = "", hintLevel = 0, showAllAnswers = False, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", lastRating = Nothing, comboDisplay = Nothing, comboTimer = 0, streak = 0, shieldActive = False }
                         in
                         ( gameOverModel, Cmd.batch [ saveCmd gameOverModel, playSound "error", vibrate 300, releaseWakeLock () ] )
                     else
@@ -1399,7 +1447,8 @@ update msg model =
 
         StorageLoaded json ->
             let newModel = decodeStats json model
-            in ( newModel, saveCmd newModel )
+                cleanModel = { newModel | input = "", showHint = False, hintText = "", hintLevel = 0, showAllAnswers = False, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", lastRating = Nothing, comboDisplay = Nothing, comboTimer = 0, newAchievements = [], achievementTimer = 0, pendingNewCards = False, message = "数据已恢复", messageType = Info }
+            in ( cleanModel, saveCmd cleanModel )
 
         DelayedNewCards ->
             case model.gameMode of
@@ -1431,47 +1480,48 @@ update msg model =
             if model.pendingNewCards then
                 ( model, Cmd.none )
             else
-                ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                ( { model | difficulty = diff, message = "难度切换为" ++ difficultyName diff, messageType = Info, streak = 0, showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                 , Cmd.batch [ generateCards diff, playSound "click" ]
                 )
 
         ChangeTheme t ->
             let newModel = { model | theme = t }
-            in ( newModel, saveCmd newModel )
+                color = if t == Dark then "#1a1a2e" else "#f5f5f5"
+            in ( newModel, Cmd.batch [ saveCmd newModel, setThemeColor color ] )
 
         SetGameMode mode ->
             let wasTimeAttack = model.gameMode == TimeAttack
             in
             case mode of
                 Daily ->
-                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | gameMode = Daily, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ generateDailyCards model.dailyDate, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 TimeAttack ->
-                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
                 Classic ->
-                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | gameMode = Classic, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], message = "返回经典模式", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Review ->
                     if List.isEmpty model.skippedProblems then
-                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                        let newModel = { model | gameMode = Classic, message = "错题本为空，无法复习", messageType = Info, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [], input = "", showHint = False, hintText = "", hintLevel = 0, showAllAnswers = False, newAchievements = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                         in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
                     else
-                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                        let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], message = "错题复习模式！复习你跳过的题目", messageType = Info, pendingNewCards = True, shieldActive = False, showCustomPanel = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                         in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click", if wasTimeAttack then releaseWakeLock () else Cmd.none ] )
                 Custom ->
-                    let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                    let newModel = { model | gameMode = Custom, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], message = "自定义挑战模式！输入你想要的 4 个数字", messageType = Info, shieldActive = False, showCustomPanel = True, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                     in ( newModel, Cmd.batch [ if wasTimeAttack then releaseWakeLock () else Cmd.none, playSound "click" ] )
 
         StartTimeAttack ->
-            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+            let newModel = { model | gameMode = TimeAttack, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], timeLeft = 60, timeAttackScore = 0, timeAttackTotalQuestions = 0, timer = 0, message = "计时挑战开始！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
             in ( newModel, Cmd.batch [ generateCards model.difficulty, playSound "click", requestWakeLock () ] )
 
         StartReview ->
             if List.isEmpty model.skippedProblems then
-                ( { model | message = "错题本为空", messageType = Info, gameMode = Classic, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
+                ( { model | message = "错题本为空", messageType = Info, gameMode = Classic, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], input = "", showHint = False, hintText = "", hintLevel = 0, showAllAnswers = False, newAchievements = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }, Cmd.batch [ generateCards model.difficulty, playSound "click" ] )
             else
-                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [] }
+                let newModel = { model | gameMode = Review, streak = 0, input = "", showAllAnswers = False, showHint = False, hintText = "", hintLevel = 0, newAchievements = [], message = "错题复习模式！", messageType = Info, pendingNewCards = True, shieldActive = False, lastRating = Nothing, showSteps = False, stepByStep = [], inputHint = "", liveResult = "", comboDisplay = Nothing, comboTimer = 0, customInput = "" }
                 in ( newModel, Cmd.batch [ loadReviewProblem model.skippedProblems, playSound "click" ] )
 
         ToggleCustomPanel ->
@@ -1574,7 +1624,7 @@ update msg model =
             in ( newModel, saveCmd newModel )
 
         ToggleSkippedProblems ->
-            ( { model | showSkippedProblems = not model.showSkippedProblems }, Cmd.none )
+            ( { model | showSkippedProblems = not model.showSkippedProblems }, playSound "click" )
 
         ShowSteps ->
             if model.pendingNewCards then
@@ -1687,7 +1737,13 @@ handleCorrect model =
                     , bestStreak = newBestStreak
                     , input = ""
                     , showHint = False
+                    , hintText = ""
                     , hintLevel = 0
+                    , showAllAnswers = False
+                    , showSteps = False
+                    , stepByStep = []
+                    , inputHint = ""
+                    , liveResult = ""
                     , history = newHistory
                     , timeLeft = newTimeLeft
                     , timeAttackScore = newScore
@@ -1733,7 +1789,13 @@ handleCorrect model =
                     , bestStreak = newBestStreak
                     , input = ""
                     , showHint = False
+                    , hintText = ""
                     , hintLevel = 0
+                    , showAllAnswers = False
+                    , showSteps = False
+                    , stepByStep = []
+                    , inputHint = ""
+                    , liveResult = ""
                     , achievements = model.achievements ++ newAch
                     , newAchievements = newAch
                     , achievementTimer = if hasNewAch then 5 else 0
@@ -1776,7 +1838,13 @@ handleCorrect model =
                     , bestStreak = newBestStreak
                     , input = ""
                     , showHint = False
+                    , hintText = ""
                     , hintLevel = 0
+                    , showAllAnswers = False
+                    , showSteps = False
+                    , stepByStep = []
+                    , inputHint = ""
+                    , liveResult = ""
                     , achievements = model.achievements ++ newAch
                     , newAchievements = newAch
                     , achievementTimer = if hasNewAch then 5 else 0
@@ -1818,7 +1886,13 @@ handleCorrect model =
                     , bestStreak = newBestStreak
                     , input = ""
                     , showHint = False
+                    , hintText = ""
                     , hintLevel = 0
+                    , showAllAnswers = False
+                    , showSteps = False
+                    , stepByStep = []
+                    , inputHint = ""
+                    , liveResult = ""
                     , achievements = model.achievements ++ newAch
                     , newAchievements = newAch
                     , achievementTimer = if hasNewAch then 5 else 0
@@ -1878,6 +1952,7 @@ handleCorrect model =
                     , liveResult = ""
                     , showSteps = False
                     , stepByStep = []
+                    , hintText = ""
                     }
                 sfx =
                     let baseSfx =
@@ -2069,7 +2144,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.dark .hint-box { background: rgba(255, 193, 7, 0.08); border-color: rgba(255, 193, 7, 0.35); color: #ffc107; }
 .container.light .hint-box { background: rgba(255, 193, 7, 0.06); border-color: rgba(255, 193, 7, 0.3); color: #f39c12; }
 
-.rating-panel { border-radius: 14px; padding: 16px; margin: 12px 0; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid; position: relative; }
+.rating-panel { border-radius: 14px; padding: 16px; margin: 12px 0; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); border: 1px solid; position: relative; z-index: 5; }
 .container.dark .rating-panel { background: rgba(255, 215, 0, 0.08); border-color: rgba(255, 215, 0, 0.25); }
 .container.light .rating-panel { background: rgba(255, 215, 0, 0.06); border-color: rgba(255, 215, 0, 0.2); }
 .rating-close { position: absolute; top: 6px; right: 10px; background: transparent; border: none; font-size: 1.3em; line-height: 1; cursor: pointer; padding: 4px; margin: 0; opacity: 0.5; transition: opacity 0.2s; font-family: inherit; }
@@ -2085,7 +2160,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .container.light .rating-details { color: #64748b; }
 .reduce-motion .rating-panel { animation: none; }
 
-.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10003; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; }
+.achievement-toast { position: fixed; top: 20px; right: 20px; background: linear-gradient(135deg, #ffd700, #ffaa00); color: #1a1a2e; padding: 16px 24px; border-radius: 14px; font-weight: 700; box-shadow: 0 10px 40px rgba(255, 215, 0, 0.3); z-index: 10003; animation: slideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); max-width: 300px; box-sizing: border-box; }
 .achievement-toast .ach-title { font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; margin-bottom: 4px; }
 .achievement-toast .ach-name { font-size: 1.2em; }
 @keyframes slideIn { 0% { transform: translateX(120%) scale(0.8); opacity: 0; } 100% { transform: translateX(0) scale(1); opacity: 1; } }
@@ -2269,7 +2344,7 @@ body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; margin: 0; min-h
 .ta-score.best { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,170,0,0.2)) !important; color: #ffd700 !important; }
 
 .tutorial-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10002; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
-.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.tutorial-box { max-width: 420px; width: 100%; border-radius: 20px; padding: 28px; text-align: center; animation: popUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); box-sizing: border-box; }
 .container.dark .tutorial-box { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); color: #eee; }
 .container.light .tutorial-box { background: #fff; border: 1px solid rgba(0,0,0,0.1); color: #1a1a2e; }
 .tutorial-box h2 { margin: 0 0 12px 0; font-size: 1.5em; font-weight: 900; color: #e94560; }
@@ -2748,7 +2823,7 @@ view model =
             [ button [ class "btn btn-secondary", onClick TriggerImport, title "从剪贴板导入备份数据" ] [ text "📥 导入数据" ]
             ]
         , div [ class "footer" ]
-            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.19" ]
+            [ text "Elm · 纯函数式 · 零运行时错误 · PWA 离线可玩 v0.4.20" ]
         ]
 
 
